@@ -1,0 +1,13 @@
+$kind: http-request
+name: GET /api/health — проверка подключения к БД
+url: "{{base_url}}/api/health"
+method: GET
+headers:
+  Accept: application/json
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Код ответа 200", function () { pm.response.to.have.status(200); });
+      pm.test("database = ok", function () { pm.expect(pm.response.json().database).to.eql("ok"); });
+    language: text/javascript
+order: 1000

@@ -1,0 +1,17 @@
+$kind: http-request
+url: "{{base_url}}/api/v1/playlists/{{playlist_id}}"
+method: PUT
+headers:
+  Accept: application/json
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "title": "Вечерняя дорога"
+    }
+scripts:
+  - type: afterResponse
+    code: pm.test("Код ответа 200", function () { pm.response.to.have.status(200); });
+    language: text/javascript
+order: 4000

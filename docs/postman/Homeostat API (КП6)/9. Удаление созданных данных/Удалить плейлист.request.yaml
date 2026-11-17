@@ -1,0 +1,10 @@
+$kind: http-request
+url: "{{base_url}}/api/v1/playlists/{{playlist_id}}"
+method: DELETE
+headers:
+  Accept: application/json
+scripts:
+  - type: afterResponse
+    code: pm.test("Код ответа 204", function () { pm.response.to.have.status(204); });
+    language: text/javascript
+order: 2000

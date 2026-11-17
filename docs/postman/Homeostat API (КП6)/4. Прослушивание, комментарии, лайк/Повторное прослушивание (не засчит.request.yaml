@@ -1,0 +1,13 @@
+$kind: http-request
+name: Повторное прослушивание (не засчитывается)
+url: "{{base_url}}/api/v1/tracks/{{track_id}}/play"
+method: POST
+headers:
+  Accept: application/json
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Код ответа 200", function () { pm.response.to.have.status(200); });
+      pm.test("counted = false", function () { pm.expect(pm.response.json().counted).to.be.false; });
+    language: text/javascript
+order: 2000

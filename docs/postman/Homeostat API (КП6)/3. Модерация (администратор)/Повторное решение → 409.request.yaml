@@ -1,0 +1,19 @@
+$kind: http-request
+url: "{{base_url}}/api/v1/admin/tracks/{{track_id}}/status"
+method: PATCH
+headers:
+  Accept: application/json
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "status": "published"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Код ответа 409", function () { pm.response.to.have.status(409); });
+      pm.test("Формат ошибки {message}", function () { pm.expect(pm.response.json()).to.have.property("message"); });
+    language: text/javascript
+order: 4000

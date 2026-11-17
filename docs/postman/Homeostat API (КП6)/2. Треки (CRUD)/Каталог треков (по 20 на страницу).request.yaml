@@ -1,0 +1,12 @@
+$kind: http-request
+url: "{{base_url}}/api/v1/tracks"
+method: GET
+headers:
+  Accept: application/json
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Код ответа 200", function () { pm.response.to.have.status(200); });
+      pm.test("Только опубликованные, без audio_path", function () { const d = pm.response.json().data; pm.expect(d.every(t => t.status === "published" && !("audio_path" in t))).to.be.true; });
+    language: text/javascript
+order: 1000

@@ -1,0 +1,16 @@
+$kind: collection
+description: |-
+  REST API платформы Homeostat, версия v1. Во всех запросах: Accept: application/json, адрес берётся из {{base_url}}.
+
+  Запуск: поднять приложение (`php artisan migrate:fresh --seed && php artisan serve`), импортировать коллекцию и окружение, выполнить папки по порядку (Collection Runner). Идентификаторы созданных записей сохраняются в переменные коллекции автоматически.
+
+  Пользователь передаётся в теле/URL временно: после ПР8 его заменит токен Sanctum (заголовок Authorization: Bearer {{token}}).
+variables:
+  base_url: http://localhost:8000
+  admin_id: "1"
+  artist_id: "2"
+  listener_id: "3"
+  track_id: ""
+  new_genre_id: ""
+  playlist_id: ""
+  comment_id: ""

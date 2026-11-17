@@ -1,0 +1,12 @@
+$kind: http-request
+url: "{{base_url}}/api/v1/tracks/1"
+method: GET
+headers:
+  Accept: application/json
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Код ответа 200", function () { pm.response.to.have.status(200); });
+      pm.test("Есть artist и genre", function () { const t = pm.response.json().data; pm.expect(t).to.have.property("artist"); pm.expect(t).to.have.property("genre"); });
+    language: text/javascript
+order: 4000
