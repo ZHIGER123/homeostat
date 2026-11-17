@@ -175,8 +175,9 @@ class SocialAuthController extends Controller
         $jwk = Http::timeout(5)->get('https://appleid.apple.com/auth/keys')->throw()->collect('keys')
             ->firstWhere('kid', $header['kid'] ?? null);
         abort_unless(is_array($jwk), 422, 'Не найден ключ подписи Apple.');
+        abort_unless(($header['alg'] ?? null) === 'ES256' && ($jwk['kty'] ?? null) === 'EC', 422, 'Неподдерживаемый алгоритм Apple.');
 
-        $signature = $this->base64UrlDecode($parts[2]);
+        $signature = $this->ecdsaSignatureToDer($this->base64UrlDecode($parts[2]));
         $verified = openssl_verify(
             "{$parts[0]}.{$parts[1]}",
             $signature,
@@ -198,20 +199,25 @@ class SocialAuthController extends Controller
 
     private function jwkToPem(array $jwk): string
     {
-        $modulus = $this->asn1Integer($this->base64UrlDecode((string) ($jwk['n'] ?? '')));
-        $exponent = $this->asn1Integer($this->base64UrlDecode((string) ($jwk['e'] ?? '')));
-        $rsaBody = $modulus.$exponent;
-        $rsa = "\x30".$this->asn1Length(strlen($rsaBody)).$rsaBody;
-        $bitString = "\x03". $this->asn1Length(strlen($rsa) + 1)."\x00".$rsa;
-        $algorithm = "\x30\x0d\x06\x09\x2a\x86\x48\x86\xf7\x0d\x01\x01\x01\x05\x00";
+        $x = $this->base64UrlDecode((string) ($jwk['x'] ?? ''));
+        $y = $this->base64UrlDecode((string) ($jwk['y'] ?? ''));
+        abort_unless(($jwk['crv'] ?? null) === 'P-256' && strlen($x) === 32 && strlen($y) === 32, 422, 'Некорректный ключ Apple.');
+        $algorithm = "\x30\x13\x06\x07\x2a\x86\x48\xce\x3d\x02\x01\x06\x08\x2a\x86\x48\xce\x3d\x03\x01\x07";
+        $bitString = "\x03\x42\x00\x04".$x.$y;
 
         return "-----BEGIN PUBLIC KEY-----\n".chunk_split(base64_encode("\x30".$this->asn1Length(strlen($algorithm) + strlen($bitString)).$algorithm.$bitString), 64, "\n")."-----END PUBLIC KEY-----\n";
     }
 
-    private function asn1Integer(string $value): string
+    private function ecdsaSignatureToDer(string $signature): string
     {
-        if ($value === '' || (ord($value[0]) & 0x80)) $value = "\x00".$value;
-        return "\x02".$this->asn1Length(strlen($value)).$value;
+        abort_unless(strlen($signature) === 64, 422, 'Некорректная подпись Apple.');
+        $r = ltrim(substr($signature, 0, 32), "\x00") ?: "\x00";
+        $s = ltrim(substr($signature, 32, 32), "\x00") ?: "\x00";
+        if (ord($r[0]) & 0x80) $r = "\x00".$r;
+        if (ord($s[0]) & 0x80) $s = "\x00".$s;
+        $body = "\x02".$this->asn1Length(strlen($r)).$r."\x02".$this->asn1Length(strlen($s)).$s;
+
+        return "\x30".$this->asn1Length(strlen($body)).$body;
     }
 
     private function asn1Length(int $length): string
