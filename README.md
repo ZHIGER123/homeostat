@@ -107,6 +107,29 @@ User::where('email', 'listener@homeostat.test')->with(['likedTracks', 'following
 Валидация входных данных описана в `app/Http/Requests` (сообщения на русском), формат ответов API — в `app/Http/Resources`
 (пароль и `remember_token` скрыты через `$hidden` модели `User` и не входят в `UserResource`).
 
+## REST API (КП6)
+
+API версии 1 доступен по префиксу `/api/v1`, маршруты описаны в `routes/api.php` (имена `v1.*`):
+
+```sh
+php artisan route:list --path=api
+```
+
+Код разделён по слоям: **Form Request** (`app/Http/Requests`) → **контроллер** (`app/Http/Controllers/Api`) → **сервис** (`app/Services`, вся бизнес-логика) → **модель Eloquent** → **API Resource** (`app/Http/Resources`).
+
+Полный CRUD реализован для треков, жанров и плейлистов; дополнительно — модерация, прослушивание, комментарии, лайки, подписки и лента, блокировка пользователей.
+Таблица эндпоинтов и покрытие требований ПР1 — в [docs/api-endpoints.md](docs/api-endpoints.md).
+
+Запросы для Postman (коллекция и окружение с `{{base_url}}`) — в `docs/postman/`. Перед запуском: `php artisan migrate:fresh --seed && php artisan serve`.
+
+Тесты (Feature-тесты API, 45 шт.):
+
+```sh
+php artisan test
+```
+
+> До ПР8 аутентификации нет: исполнитель, автор комментария и владелец плейлиста передаются в запросе (`user_id` или `/users/{user}/...`).
+
 ## Документация
 
 Проектная документация (ТЗ, ER-диаграмма, физическая модель БД) хранится в каталоге `docs/`.

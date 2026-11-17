@@ -17,7 +17,11 @@ class UserResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
-            'email' => $this->email,
+            // E-mail виден только владельцу профиля и администратору
+            'email' => $this->when(
+                $request->user()?->is($this->resource) || $request->user()?->isAdmin(),
+                $this->email,
+            ),
             'role' => $this->role,
             'bio' => $this->bio,
             'avatar_path' => $this->avatar_path,
