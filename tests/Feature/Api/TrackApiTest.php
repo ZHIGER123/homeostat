@@ -9,11 +9,18 @@ use App\Models\Track;
 use App\Models\User;
 use App\Services\TrackService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class TrackApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Sanctum::actingAs(User::factory()->admin()->create());
+    }
 
     private function payload(User $artist, Genre $genre, array $override = []): array
     {
@@ -89,6 +96,7 @@ class TrackApiTest extends TestCase
     public function test_store_creates_pending_track_and_returns_201(): void
     {
         $artist = User::factory()->artist()->create();
+        Sanctum::actingAs($artist);
         $genre = Genre::factory()->create();
 
         $this->postJson('/api/v1/tracks', $this->payload($artist, $genre))
@@ -102,6 +110,7 @@ class TrackApiTest extends TestCase
     public function test_store_ignores_client_supplied_status(): void
     {
         $artist = User::factory()->artist()->create();
+        Sanctum::actingAs($artist);
         $genre = Genre::factory()->create();
 
         $this->postJson('/api/v1/tracks', $this->payload($artist, $genre, ['status' => 'published', 'plays_count' => 999]))
@@ -112,9 +121,10 @@ class TrackApiTest extends TestCase
 
     public function test_store_validates_input_with_422(): void
     {
+        Sanctum::actingAs(User::factory()->artist()->create());
         $this->postJson('/api/v1/tracks', ['title' => str_repeat('a', 151), 'duration' => 0])
             ->assertStatus(422)
-            ->assertJsonValidationErrors(['user_id', 'genre_id', 'title', 'audio_path', 'duration'])
+            ->assertJsonValidationErrors(['genre_id', 'title', 'audio_path', 'duration'])
             ->assertJsonStructure(['message', 'errors']);
     }
 
@@ -124,13 +134,16 @@ class TrackApiTest extends TestCase
         $listener = User::factory()->listener()->create();
         $blocked = User::factory()->artist()->blocked()->create();
 
+        Sanctum::actingAs($listener);
         $this->postJson('/api/v1/tracks', $this->payload($listener, $genre))->assertForbidden();
+        Sanctum::actingAs($blocked);
         $this->postJson('/api/v1/tracks', $this->payload($blocked, $genre))->assertForbidden();
     }
 
     public function test_store_returns_409_when_pending_limit_exceeded(): void
     {
         $artist = User::factory()->artist()->create();
+        Sanctum::actingAs($artist);
         $genre = Genre::factory()->create();
         Track::factory()->count(TrackService::MAX_PENDING_PER_ARTIST)->pending()
             ->create(['user_id' => $artist->id, 'genre_id' => $genre->id]);
