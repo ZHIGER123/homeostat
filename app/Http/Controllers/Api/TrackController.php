@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\TrackStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\IndexTrackRequest;
 use App\Http\Requests\StoreTrackRequest;
@@ -13,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Gate;
 
 class TrackController extends Controller
 {
@@ -27,26 +29,32 @@ class TrackController extends Controller
     /** POST /api/v1/tracks — загрузка трека (создаётся со статусом pending). */
     public function store(StoreTrackRequest $request): JsonResponse
     {
-        $track = $this->tracks->create($request->validated());
+        $track = $this->tracks->create(array_merge($request->validated(), ['user_id' => $request->user()->id]));
 
         return (new TrackResource($track))->response()->setStatusCode(Response::HTTP_CREATED);
     }
 
     /** GET /api/v1/tracks/{track} — карточка трека (при отсутствии записи — 404). */
-    public function show(Track $track): TrackResource
+    public function show(Request $request, Track $track): TrackResource
     {
+        $user = $request->user('sanctum');
+        abort_if($track->status !== TrackStatus::Published && ! ($user && ($user->isAdmin() || $track->user_id === $user->id)), 404);
+
         return new TrackResource($this->tracks->card($track));
     }
 
     /** PUT|PATCH /api/v1/tracks/{track} — изменение трека (повторная модерация). */
     public function update(UpdateTrackRequest $request, Track $track): TrackResource
     {
+        Gate::authorize('update', $track);
+
         return new TrackResource($this->tracks->update($track, $request->validated()));
     }
 
     /** DELETE /api/v1/tracks/{track} — удаление трека. */
     public function destroy(Track $track): Response
     {
+        Gate::authorize('delete', $track);
         $this->tracks->delete($track);
 
         return response()->noContent();

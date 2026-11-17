@@ -4,8 +4,10 @@ namespace Tests\Feature\Api;
 
 use App\Models\Genre;
 use App\Models\Track;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class ErrorFormatTest extends TestCase
@@ -25,6 +27,7 @@ class ErrorFormatTest extends TestCase
         $this->getJson('/api/v1/genres/999999')->assertNotFound()
             ->assertExactJson(['message' => 'Ресурс не найден.']);
 
+        Sanctum::actingAs(User::factory()->admin()->create());
         $genre = Genre::factory()->create();
         Track::factory()->create(['genre_id' => $genre->id]);
         $this->deleteJson('/api/v1/genres/'.$genre->id)->assertStatus(409)

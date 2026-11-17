@@ -15,15 +15,13 @@ class StoreTrackRequest extends FormRequest
      * Статус и причину отклонения клиент не передаёт: новый трек всегда создаётся
      * со статусом pending, статус меняет только администратор (модерация).
      *
-     * `user_id` временно передаётся в теле запроса; в ПР8 исполнитель будет
-     * определяться по токену Sanctum ($request->user()).
+     * Исполнитель определяется по токену Sanctum.
      *
      * @return array<string, mixed>
      */
     public function rules(): array
     {
         return [
-            'user_id' => ['required', 'integer', 'exists:users,id'],
             'genre_id' => ['required', 'integer', 'exists:genres,id'],
             'title' => ['required', 'string', 'max:150'],
             'description' => ['nullable', 'string', 'max:5000'],

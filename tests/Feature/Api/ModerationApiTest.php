@@ -3,12 +3,20 @@
 namespace Tests\Feature\Api;
 
 use App\Models\Track;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class ModerationApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Sanctum::actingAs(User::factory()->admin()->create());
+    }
 
     public function test_queue_shows_pending_tracks_by_default_and_filters_by_status(): void
     {

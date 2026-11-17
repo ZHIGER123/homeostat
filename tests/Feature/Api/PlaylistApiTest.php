@@ -6,15 +6,23 @@ use App\Models\Playlist;
 use App\Models\Track;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class PlaylistApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Sanctum::actingAs(User::factory()->admin()->create());
+    }
+
     public function test_store_creates_playlist_with_ordered_tracks(): void
     {
         $user = User::factory()->create();
+        Sanctum::actingAs($user);
         [$a, $b] = Track::factory()->count(2)->published()->create();
 
         $this->postJson('/api/v1/playlists', [
@@ -35,7 +43,7 @@ class PlaylistApiTest extends TestCase
 
         $this->postJson('/api/v1/playlists', ['title' => '', 'track_ids' => [$pending->id, 9999]])
             ->assertStatus(422)
-            ->assertJsonValidationErrors(['user_id', 'title', 'track_ids.0', 'track_ids.1']);
+            ->assertJsonValidationErrors(['title', 'track_ids.0', 'track_ids.1']);
     }
 
     public function test_index_filters_by_owner_and_show_returns_404_for_unknown(): void

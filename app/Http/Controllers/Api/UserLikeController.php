@@ -10,10 +10,11 @@ use App\Services\LikeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Gate;
 
 /**
  * Вложенный ресурс: лайки пользователя (/users/{user}/likes/{track}).
- * В ПР8 {user} заменится на текущего пользователя по токену (/me/likes).
+ * Доступ к {user} проверяется политикой по токену.
  */
 class UserLikeController extends Controller
 {
@@ -22,12 +23,15 @@ class UserLikeController extends Controller
     /** GET /api/v1/users/{user}/likes — понравившиеся треки. */
     public function index(User $user): AnonymousResourceCollection
     {
+        Gate::authorize('access', $user);
+
         return TrackResource::collection($this->likes->likedTracks($user));
     }
 
     /** PUT /api/v1/users/{user}/likes/{track} — поставить лайк (201 — создан, 200 — уже был). */
     public function store(User $user, Track $track): JsonResponse
     {
+        Gate::authorize('access', $user);
         $result = $this->likes->like($user, $track);
 
         return response()->json(
@@ -39,6 +43,7 @@ class UserLikeController extends Controller
     /** DELETE /api/v1/users/{user}/likes/{track} — снять лайк. */
     public function destroy(User $user, Track $track): Response
     {
+        Gate::authorize('access', $user);
         $this->likes->unlike($user, $track);
 
         return response()->noContent();
