@@ -9,6 +9,8 @@ use App\Models\Track;
 use App\Models\User;
 use App\Services\TrackService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -19,6 +21,8 @@ class TrackApiTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Storage::fake('local');
+        Storage::fake('public');
         Sanctum::actingAs(User::factory()->admin()->create());
     }
 
@@ -29,7 +33,7 @@ class TrackApiTest extends TestCase
             'genre_id' => $genre->id,
             'title' => 'Night Drive',
             'description' => 'Synthwave',
-            'audio_path' => 'tracks/night-drive.mp3',
+            'audio' => UploadedFile::fake()->create('night-drive.mp3', 100, 'audio/mpeg'),
             'duration' => 214,
         ];
     }
@@ -124,7 +128,7 @@ class TrackApiTest extends TestCase
         Sanctum::actingAs(User::factory()->artist()->create());
         $this->postJson('/api/v1/tracks', ['title' => str_repeat('a', 151), 'duration' => 0])
             ->assertStatus(422)
-            ->assertJsonValidationErrors(['genre_id', 'title', 'audio_path', 'duration'])
+            ->assertJsonValidationErrors(['genre_id', 'title', 'audio', 'duration'])
             ->assertJsonStructure(['message', 'errors']);
     }
 

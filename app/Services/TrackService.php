@@ -4,13 +4,14 @@ namespace App\Services;
 
 use App\Enums\TrackStatus;
 use App\Enums\UserRole;
+use App\Exceptions\BusinessException;
 use App\Models\Track;
 use App\Models\User;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
-use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
@@ -46,6 +47,7 @@ class TrackService
                 });
             })
             ->when($filters['genre_id'] ?? null, fn ($query, $genreId) => $query->where('genre_id', $genreId))
+            ->when(isset($filters['min_plays']), fn ($query) => $query->where('plays_count', '>=', $filters['min_plays']))
             ->orderBy($sort, $direction)
             ->orderByDesc('id')
             ->paginate($filters['per_page'] ?? 20)
@@ -65,26 +67,44 @@ class TrackService
      */
     public function create(array $data): Track
     {
-        $artist = User::findOrFail($data['user_id']);
+        $stored = [];
+        try {
+            $track = DB::transaction(function () use ($data, &$stored) {
+                // Блокировка строки артиста сериализует проверку лимита и создание.
+                $artist = User::whereKey($data['user_id'])->lockForUpdate()->firstOrFail();
+                if ($artist->is_blocked || $artist->role !== UserRole::Artist) {
+                    throw new AccessDeniedHttpException('Загружать треки может только незаблокированный исполнитель.');
+                }
+                if ($artist->tracks()->where('status', TrackStatus::Pending)->count() >= self::MAX_PENDING_PER_ARTIST) {
+                    throw new BusinessException('Превышен лимит треков на модерации ('.self::MAX_PENDING_PER_ARTIST.').');
+                }
+                $audio = $data['audio']->store('tracks', 'local');
+                if ($audio === false) {
+                    throw new \RuntimeException('Не удалось сохранить аудиофайл.');
+                }
+                $stored[] = ['local', $audio];
+                $cover = null;
+                if (isset($data['cover'])) {
+                    $cover = $data['cover']->store('covers', 'public');
+                    if ($cover === false) {
+                        throw new \RuntimeException('Не удалось сохранить обложку.');
+                    }
+                    $stored[] = ['public', $cover];
+                }
 
-        if ($artist->is_blocked) {
-            throw new AccessDeniedHttpException('Пользователь заблокирован.');
+                return Track::create([
+                    'user_id' => $artist->id, 'genre_id' => $data['genre_id'], 'title' => $data['title'],
+                    'description' => $data['description'] ?? null, 'duration' => $data['duration'],
+                    'audio_path' => $audio, 'cover_path' => $cover,
+                    'status' => TrackStatus::Pending, 'plays_count' => 0,
+                ]);
+            });
+        } catch (\Throwable $exception) {
+            foreach ($stored as [$disk, $path]) {
+                Storage::disk($disk)->delete($path);
+            }
+            throw $exception;
         }
-        if ($artist->role !== UserRole::Artist) {
-            throw new AccessDeniedHttpException('Загружать треки может только исполнитель.');
-        }
-
-        $pending = $artist->tracks()->where('status', TrackStatus::Pending)->count();
-        if ($pending >= self::MAX_PENDING_PER_ARTIST) {
-            throw new ConflictHttpException(
-                'Превышен лимит треков на модерации ('.self::MAX_PENDING_PER_ARTIST.').'
-            );
-        }
-
-        $track = DB::transaction(fn () => Track::create($data + [
-            'status' => TrackStatus::Pending,
-            'plays_count' => 0,
-        ]));
 
         return $this->card($track);
     }
@@ -97,21 +117,40 @@ class TrackService
      */
     public function update(Track $track, array $data): Track
     {
-        $track->fill($data);
+        $updated = DB::transaction(function () use ($track, $data) {
+            $artist = User::whereKey($track->user_id)->lockForUpdate()->firstOrFail();
+            $locked = Track::whereKey($track->id)->lockForUpdate()->firstOrFail();
+            $locked->fill($data);
+            if ($locked->isDirty()) {
+                if ($locked->status !== TrackStatus::Pending) {
+                    if ($artist->tracks()->where('status', TrackStatus::Pending)->count() >= self::MAX_PENDING_PER_ARTIST) {
+                        throw new BusinessException('Превышен лимит треков на модерации ('.self::MAX_PENDING_PER_ARTIST.').');
+                    }
+                    if (! $locked->status->canTransitionTo(TrackStatus::Pending)) {
+                        throw new BusinessException('Недопустимый переход статуса.');
+                    }
+                }
+                $locked->status = TrackStatus::Pending;
+                $locked->reject_reason = null;
+                $locked->save();
+            }
 
-        if ($track->isDirty()) {
-            $track->status = TrackStatus::Pending;
-            $track->reject_reason = null;
-            $track->save();
-        }
+            return $locked;
+        });
 
-        return $this->card($track);
+        return $this->card($updated);
     }
 
     public function delete(Track $track): void
     {
-        // Комментарии, лайки и записи плейлистов удаляются каскадом (FK ON DELETE CASCADE)
+        // Комментарии, лайки и записи плейлистов удаляются каскадом.
+        $audio = $track->audio_path;
+        $cover = $track->cover_path;
         $track->delete();
+        Storage::disk('local')->delete($audio);
+        if ($cover) {
+            Storage::disk('public')->delete($cover);
+        }
     }
 
     /**
