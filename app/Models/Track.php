@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\TrackStatus;
 use Database\Factories\TrackFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -38,6 +39,12 @@ class Track extends Model
             'plays_count' => 'integer',
             'status' => TrackStatus::class,
         ];
+    }
+
+    /** Только опубликованные (прошедшие модерацию) треки. */
+    public function scopePublished(Builder $query): Builder
+    {
+        return $query->where('status', TrackStatus::Published);
     }
 
     /** Исполнитель, загрузивший трек. */

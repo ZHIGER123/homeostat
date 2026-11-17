@@ -12,6 +12,8 @@ class UpdatePlaylistRequest extends FormRequest
     }
 
     /**
+     * Состав плейлиста меняется вложенными маршрутами /playlists/{playlist}/tracks.
+     *
      * @return array<string, mixed>
      */
     public function rules(): array
@@ -19,8 +21,6 @@ class UpdatePlaylistRequest extends FormRequest
         return [
             'title' => ['sometimes', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:2000'],
-            'track_ids' => ['sometimes', 'array'],
-            'track_ids.*' => ['integer', 'exists:tracks,id'],
         ];
     }
 
@@ -32,8 +32,6 @@ class UpdatePlaylistRequest extends FormRequest
         return [
             'title.max' => 'Название плейлиста не должно превышать 255 символов.',
             'description.max' => 'Описание не должно превышать 2000 символов.',
-            'track_ids.array' => 'Список треков должен быть массивом.',
-            'track_ids.*.exists' => 'Один из указанных треков не существует.',
         ];
     }
 }
