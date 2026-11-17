@@ -15,7 +15,7 @@
 
 ## Стек
 
-- PHP 8.3+, Laravel 11+
+- PHP 8.4.1+ для зафиксированных зависимостей, Laravel 13
 - MySQL 8
 - Laravel Sanctum (токены для API)
 - Blade-шаблоны для интерфейса
@@ -23,7 +23,7 @@
 
 ## Требования
 
-- PHP 8.3 или выше с расширениями: pdo_mysql, mbstring, openssl, fileinfo, curl
+- PHP 8.4.1 или выше с расширениями: pdo_mysql, mbstring, openssl, fileinfo, curl (для тестов также pdo_sqlite)
 - Composer 2
 - MySQL 8
 - Git
@@ -114,6 +114,8 @@ API версии 1 доступен по префиксу `/api/v1`, маршр�
 ```sh
 php artisan route:list --path=api
 ```
+
+Для русских сообщений валидации установите `APP_LOCALE=ru` в `.env` (это значение указано в `.env.example`). При `APP_DEBUG=false` внутренние ошибки не раскрывают клиенту стек вызовов и SQL.
 
 Код разделён по слоям: **Form Request** (`app/Http/Requests`) → **контроллер** (`app/Http/Controllers/Api`) → **сервис** (`app/Services`, вся бизнес-логика) → **модель Eloquent** → **API Resource** (`app/Http/Resources`).
 
