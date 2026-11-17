@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\BusinessException;
 use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\EnsureUserIsNotBlocked;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -35,6 +36,12 @@ return Application::configure(basePath: dirname(__DIR__))
                     'message' => 'Ошибка валидации.',
                     'errors' => $e->errors(),
                 ], 422);
+            }
+        });
+
+        $exceptions->render(function (BusinessException $e, Request $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                return response()->json(['message' => $e->getMessage()], 409);
             }
         });
 

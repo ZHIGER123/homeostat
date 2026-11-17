@@ -24,7 +24,6 @@ class UpdateTrackRequest extends FormRequest
             'genre_id' => ['sometimes', 'integer', 'exists:genres,id'],
             'title' => ['sometimes', 'string', 'max:150'],
             'description' => ['nullable', 'string', 'max:5000'],
-            'cover_path' => ['nullable', 'string', 'max:255'],
             'duration' => ['sometimes', 'integer', 'min:1', 'max:36000'],
         ];
     }

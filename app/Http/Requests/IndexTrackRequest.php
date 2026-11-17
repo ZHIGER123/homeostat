@@ -23,6 +23,7 @@ class IndexTrackRequest extends FormRequest
         return [
             'q' => ['sometimes', 'nullable', 'string', 'max:100'],
             'genre_id' => ['sometimes', 'integer', 'exists:genres,id'],
+            'min_plays' => ['sometimes', 'integer', 'min:0'],
             'sort' => ['sometimes', Rule::in(['created_at', 'plays_count', 'likes_count'])],
             'direction' => ['sometimes', Rule::in(['asc', 'desc'])],
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
