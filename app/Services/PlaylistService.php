@@ -2,12 +2,12 @@
 
 namespace App\Services;
 
+use App\Exceptions\BusinessException;
 use App\Models\Playlist;
 use App\Models\Track;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
-use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 /**
  * Плейлисты и их состав с сохранением порядка (ФТ-10).
@@ -74,7 +74,7 @@ class PlaylistService
             $track = Track::findOrFail($trackId);
 
             if ($playlist->tracks()->whereKey($track->id)->exists()) {
-                throw new ConflictHttpException('Трек уже есть в плейлисте.');
+                throw new BusinessException('Трек уже есть в плейлисте.');
             }
 
             $position = (int) DB::table('playlist_track')

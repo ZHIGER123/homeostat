@@ -15,7 +15,7 @@
 
 ## Стек
 
-- PHP 8.3+, Laravel 11+
+- PHP 8.4.1+ для зафиксированных зависимостей, Laravel 13
 - MySQL 8
 - Laravel Sanctum (токены для API)
 - Blade-шаблоны для интерфейса
@@ -23,7 +23,7 @@
 
 ## Требования
 
-- PHP 8.3 или выше с расширениями: pdo_mysql, mbstring, openssl, fileinfo, curl
+- PHP 8.4.1 или выше с расширениями: pdo_mysql, mbstring, openssl, fileinfo, curl (для тестов также pdo_sqlite)
 - Composer 2
 - MySQL 8
 - Git
@@ -115,6 +115,8 @@ API версии 1 доступен по префиксу `/api/v1`, маршр�
 php artisan route:list --path=api
 ```
 
+Для русских сообщений валидации установите `APP_LOCALE=ru` в `.env` (это значение указано в `.env.example`). При `APP_DEBUG=false` внутренние ошибки не раскрывают клиенту стек вызовов и SQL.
+
 Код разделён по слоям: **Form Request** (`app/Http/Requests`) → **контроллер** (`app/Http/Controllers/Api`) → **сервис** (`app/Services`, вся бизнес-логика) → **модель Eloquent** → **API Resource** (`app/Http/Resources`).
 
 Полный CRUD реализован для треков, жанров и плейлистов; дополнительно — модерация, прослушивание, комментарии, лайки, подписки и лента, блокировка пользователей.
@@ -128,8 +130,25 @@ php artisan route:list --path=api
 php artisan test
 ```
 
-> До ПР8 аутентификации нет: исполнитель, автор комментария и владелец плейлиста передаются в запросе (`user_id` или `/users/{user}/...`).
+## Аутентификация (КП8)
+
+`POST /api/v1/auth/register` и `POST /api/v1/auth/login` возвращают токен Sanctum. Передавайте его как `Authorization: Bearer <token>`; `POST /api/v1/auth/logout` отзывает текущий токен, а `GET /api/v1/me` возвращает профиль. Срок действия задаётся `SANCTUM_TOKEN_EXPIRATION` в минутах (по умолчанию 10080). Для управления жанрами и модерации необходим администратор; треки изменяет владелец-артист или администратор.
+
+В Postman запросы входа под каждой ролью сохраняют токен в переменную коллекции `token`. Переключайте пользователя перед проверкой соответствующих действий. Загрузка трека использует `multipart/form-data`: обязательные `title`, `genre_id`, `duration`, `audio` (mp3/wav/ogg, до 50 МБ), необязательные `description` и `cover` (jpg/png, до 5 МБ). Подберите лимиты `upload_max_filesize` и `post_max_size` в PHP и лимит веб-сервера, затем настройте `php artisan storage:link` для обложек.
 
 ## Документация
 
 Проектная документация (ТЗ, ER-диаграмма, физическая модель БД) хранится в каталоге `docs/`.
+
+## Бизнес-правила (КП9)
+
+Описание транзакций, модерации, фильтрации и ограничений статистики: [docs/kp9-business-rules.md](docs/kp9-business-rules.md). Для проверки отката и файлов запускайте `php artisan test --filter=TrackWorkflowTest`.
+
+
+## КП10: тестирование, логирование и сдача
+
+- Матрица из 16 сценариев с ожидаемыми и фактическими результатами: [docs/kp10-test-cases.md](docs/kp10-test-cases.md).
+- Пошаговый чек-лист ручной проверки коллекции Postman: [docs/kp10-postman-checklist.md](docs/kp10-postman-checklist.md).
+- API-запросы журналируются middleware `LogApiActivity` без тела запроса, токенов, паролей и файлов. Бизнес-события создания и модерации трека записываются с идентификаторами и статусом.
+- Автоматические Feature-тесты используют отдельную SQLite-конфигурацию PHPUnit, `RefreshDatabase` и фабрики. Перед сдачей необходимо выполнить `php artisan test`, `php artisan route:list --path=api` и ручной чек-лист Postman.
+- В production следует использовать `APP_DEBUG=false`, не помещать `.env` и реальные токены в Git и ограничить доступ к логам.

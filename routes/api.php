@@ -2,12 +2,14 @@
 
 use App\Http\Controllers\Api\Admin\TrackModerationController;
 use App\Http\Controllers\Api\Admin\UserBlockController;
+use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\GenreController;
 use App\Http\Controllers\Api\PlaylistController;
 use App\Http\Controllers\Api\PlaylistTrackController;
 use App\Http\Controllers\Api\TrackCommentController;
 use App\Http\Controllers\Api\TrackController;
+use App\Http\Controllers\Api\TrackStatsController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserFollowController;
 use App\Http\Controllers\Api\UserLikeController;
@@ -40,14 +42,26 @@ Route::get('/health', function () {
 |--------------------------------------------------------------------------
 | REST API, версия 1:  /api/v1/...   (имена маршрутов: v1.*)
 |--------------------------------------------------------------------------
-| Группы разделены по уровню доступа. Middleware пока пустые: в ПР8 в них
-| будут подключены auth:sanctum, проверка роли и блокировки, Policies.
+| Группы разделены по уровню доступа; используются Sanctum, роли и политики.
 */
 Route::prefix('v1')->name('v1.')->group(function () {
+
+    Route::post('register', [AuthController::class, 'register'])->name('register');
+    Route::post('auth/register', [AuthController::class, 'register'])->name('auth.register');
+    Route::post('login', [AuthController::class, 'login'])->middleware('throttle:5,1')->name('login');
+    Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:5,1')->name('auth.login');
+    Route::middleware(['auth:sanctum', 'not_blocked'])->group(function () {
+        Route::post('logout', [AuthController::class, 'logout'])->name('logout');
+        Route::get('me', [AuthController::class, 'me'])->name('me');
+        Route::get('me/tracks/stats', [TrackStatsController::class, 'index'])->middleware('role:artist,admin')->name('me.tracks.stats');
+        Route::match(['put', 'patch'], 'me', [AuthController::class, 'updateProfile'])->name('me.update');
+        Route::post('auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
+    });
 
     // ---- Гость: каталог, карточка трека, комментарии, профиль, прослушивание ----
     Route::middleware([])->group(function () {
         Route::apiResource('tracks', TrackController::class)->only(['index', 'show']);
+        Route::get('tracks/{track}/stream', [TrackController::class, 'stream'])->name('tracks.stream');
         Route::post('tracks/{track}/play', [TrackController::class, 'play'])->name('tracks.play');
         Route::get('tracks/{track}/comments', [TrackCommentController::class, 'index'])->name('tracks.comments.index');
 
@@ -55,10 +69,10 @@ Route::prefix('v1')->name('v1.')->group(function () {
         Route::get('users/{user}', [UserController::class, 'show'])->name('users.show');
     });
 
-    // ---- Авторизованный пользователь (ПР8: auth:sanctum, роли listener / artist) ----
-    Route::middleware([])->group(function () {
+    // ---- Авторизованный пользователь ----
+    Route::middleware(['auth:sanctum', 'not_blocked'])->group(function () {
         // Треки артиста
-        Route::apiResource('tracks', TrackController::class)->only(['store', 'update', 'destroy']);
+        Route::apiResource('tracks', TrackController::class)->only(['store', 'update', 'destroy'])->middleware('role:artist,admin');
 
         // Комментарии
         Route::post('tracks/{track}/comments', [TrackCommentController::class, 'store'])->name('tracks.comments.store');
@@ -83,7 +97,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
     });
 
     // ---- Администратор (ПР8: auth:sanctum + роль admin) ----
-    Route::prefix('admin')->name('admin.')->middleware([])->group(function () {
+    Route::prefix('admin')->name('admin.')->middleware(['auth:sanctum', 'not_blocked', 'role:admin'])->group(function () {
         Route::get('tracks', [TrackModerationController::class, 'index'])->name('tracks.index');
         Route::patch('tracks/{track}/status', [TrackModerationController::class, 'updateStatus'])->name('tracks.status');
 
@@ -91,8 +105,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
         Route::delete('users/{user}/block', [UserBlockController::class, 'destroy'])->name('users.block.destroy');
     });
 
-    // ---- Администратор: справочник жанров (ПР8: auth:sanctum + роль admin) ----
-    Route::middleware([])->group(function () {
+    // ---- Администратор: справочник жанров ----
+    Route::middleware(['auth:sanctum', 'not_blocked', 'role:admin'])->group(function () {
         Route::apiResource('genres', GenreController::class)->only(['store', 'update', 'destroy']);
     });
 });

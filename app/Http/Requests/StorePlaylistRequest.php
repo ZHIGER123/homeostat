@@ -14,14 +14,13 @@ class StorePlaylistRequest extends FormRequest
     }
 
     /**
-     * `user_id` временно передаётся в теле; в ПР8 владелец определяется по токену.
+     * Владелец определяется по токену Sanctum.
      *
      * @return array<string, mixed>
      */
     public function rules(): array
     {
         return [
-            'user_id' => ['required', 'integer', 'exists:users,id'],
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:2000'],
             'track_ids' => ['sometimes', 'array'],

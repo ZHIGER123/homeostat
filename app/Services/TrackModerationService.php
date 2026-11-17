@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use App\Enums\TrackStatus;
+use App\Exceptions\BusinessException;
 use App\Models\Track;
 use Illuminate\Pagination\LengthAwarePaginator;
-use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Модерация треков администратором: очередь и решение (ФТ-13).
@@ -29,15 +31,26 @@ class TrackModerationService
      */
     public function decide(Track $track, TrackStatus $status, ?string $reason): Track
     {
-        if ($track->status !== TrackStatus::Pending) {
-            throw new ConflictHttpException('Решение можно принять только по треку на модерации.');
-        }
+        $updated = DB::transaction(function () use ($track, $status, $reason) {
+            $locked = Track::whereKey($track->id)->lockForUpdate()->firstOrFail();
+            if (! $locked->status->canTransitionTo($status) || $locked->status !== TrackStatus::Pending) {
+                throw new BusinessException('Решение можно принять только по треку на модерации.');
+            }
+            $locked->update([
+                'status' => $status,
+                'reject_reason' => $status === TrackStatus::Rejected ? $reason : null,
+            ]);
 
-        $track->update([
-            'status' => $status,
-            'reject_reason' => $status === TrackStatus::Rejected ? $reason : null,
+            return $locked->load(['artist', 'genre']);
+        });
+
+        Log::info('track.moderated', [
+            'track_id' => $updated->id,
+            'status' => $updated->status->value,
+            'moderator_id' => request()->user()?->getAuthIdentifier(),
         ]);
 
-        return $track->load(['artist', 'genre']);
+        return $updated;
     }
 }
+
