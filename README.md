@@ -152,3 +152,23 @@ php artisan test
 - API-запросы журналируются middleware `LogApiActivity` без тела запроса, токенов, паролей и файлов. Бизнес-события создания и модерации трека записываются с идентификаторами и статусом.
 - Автоматические Feature-тесты используют отдельную SQLite-конфигурацию PHPUnit, `RefreshDatabase` и фабрики. Перед сдачей необходимо выполнить `php artisan test`, `php artisan route:list --path=api` и ручной чек-лист Postman.
 - В production следует использовать `APP_DEBUG=false`, не помещать `.env` и реальные токены в Git и ограничить доступ к логам.
+
+
+## КП11–КП12: клиентская часть
+
+Frontend реализован внутри Laravel на Blade + Vite + vanilla JavaScript: `resources/views/welcome.blade.php`, `resources/js/app.js`, `resources/css/app.css`. Он не использует Blade-данные как заглушки: каталог, авторизация, профиль, загрузка и модерация работают через API `/api/v1`.
+
+### Запуск
+
+```bash
+cp .env.example .env
+php artisan key:generate
+php artisan migrate:fresh --seed
+npm install
+npm run dev
+php artisan serve --host=127.0.0.1 --port=8000
+```
+
+Откройте `http://127.0.0.1:8000`. Для внешнего Vite-клиента API-адрес задаётся через `VITE_API_URL`, а разрешённый origin — через `CLIENT_URL`. В Bearer-режиме `supports_credentials=false`; wildcard `*` не используется.
+
+Реализованы: регистрация и вход, localStorage-токен, `GET /me`, logout, обработка 401/403/409/422/500 и сетевых ошибок, каталог с поиском/жанром/сортировкой/пагинацией, карточка трека, аудиоплеер, загрузка FormData, редактирование, удаление, статистика артиста и админская модерация.
