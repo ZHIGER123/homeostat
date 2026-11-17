@@ -1,0 +1,12 @@
+$kind: http-request
+url: "{{base_url}}/api/v1/genres"
+method: GET
+headers:
+  Accept: application/json
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Код ответа 200", function () { pm.response.to.have.status(200); });
+      pm.test("Есть поле tracks_count", function () { pm.expect(pm.response.json().data[0]).to.have.property("tracks_count"); });
+    language: text/javascript
+order: 1000

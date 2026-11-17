@@ -1,0 +1,19 @@
+$kind: http-request
+url: "{{base_url}}/api/v1/tracks/999999"
+method: PATCH
+headers:
+  Accept: application/json
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "title": "x"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Код ответа 404", function () { pm.response.to.have.status(404); });
+      pm.test("Формат ошибки {message}", function () { pm.expect(pm.response.json()).to.have.property("message"); });
+    language: text/javascript
+order: 4000

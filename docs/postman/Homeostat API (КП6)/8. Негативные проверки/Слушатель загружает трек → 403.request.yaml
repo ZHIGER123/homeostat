@@ -1,0 +1,23 @@
+$kind: http-request
+url: "{{base_url}}/api/v1/tracks"
+method: POST
+headers:
+  Accept: application/json
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "user_id": "{{listener_id}}",
+      "genre_id": 1,
+      "title": "T",
+      "audio_path": "a.mp3",
+      "duration": 10
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Код ответа 403", function () { pm.response.to.have.status(403); });
+      pm.test("Формат ошибки {message}", function () { pm.expect(pm.response.json()).to.have.property("message"); });
+    language: text/javascript
+order: 9000

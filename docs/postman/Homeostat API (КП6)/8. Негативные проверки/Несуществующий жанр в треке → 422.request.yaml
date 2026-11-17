@@ -1,0 +1,23 @@
+$kind: http-request
+url: "{{base_url}}/api/v1/tracks"
+method: POST
+headers:
+  Accept: application/json
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "user_id": "{{artist_id}}",
+      "genre_id": 9999,
+      "title": "T",
+      "audio_path": "a.mp3",
+      "duration": 10
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Код ответа 422", function () { pm.response.to.have.status(422); });
+      pm.test("Формат ошибки {message, errors}", function () { const j = pm.response.json(); pm.expect(j).to.have.property("message"); pm.expect(j).to.have.property("errors"); });
+    language: text/javascript
+order: 8000

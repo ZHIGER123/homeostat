@@ -1,0 +1,23 @@
+$kind: http-request
+url: "{{base_url}}/api/v1/playlists/{{playlist_id}}/tracks"
+method: PUT
+headers:
+  Accept: application/json
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "track_ids": [
+        "{{track_id}}",
+        1,
+        2
+      ]
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Код ответа 200", function () { pm.response.to.have.status(200); });
+      pm.test("Первым стоит новый трек", function () { pm.expect(pm.response.json().data.tracks[0].position).to.eql(1); });
+    language: text/javascript
+order: 7000

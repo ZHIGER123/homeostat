@@ -1,0 +1,10 @@
+$kind: http-request
+url: "{{base_url}}/api/v1/users/{{listener_id}}/following/{{artist_id}}"
+method: PUT
+headers:
+  Accept: application/json
+scripts:
+  - type: afterResponse
+    code: pm.test("Код ответа 201 (создано) или 200 (уже было — операция идемпотентна)", function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });
+    language: text/javascript
+order: 1000
