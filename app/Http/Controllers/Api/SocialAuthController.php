@@ -89,7 +89,7 @@ class SocialAuthController extends Controller
     private function profile(string $provider, string $code): array
     {
         $configuration = config("services.oauth.{$provider}");
-        $token = Http::asForm()->post($configuration['token'], [
+        $token = Http::acceptJson()->asForm()->post($configuration['token'], [
             'grant_type' => 'authorization_code',
             'client_id' => $configuration['client_id'],
             'client_secret' => $configuration['client_secret'],
@@ -115,9 +115,7 @@ class SocialAuthController extends Controller
             return ['id' => (string) $data['id'], 'email' => $email, 'name' => $data['name'] ?: $data['login']];
         }
 
-        $parts = explode('.', (string) ($token['id_token'] ?? ''));
-        abort_unless(count($parts) === 3, 422, 'Apple не вернул профиль пользователя.');
-        $claims = json_decode(base64_decode(strtr($parts[1], '-_', '+/')), true, 512, JSON_THROW_ON_ERROR);
+        $claims = $this->verifiedAppleClaims((string) ($token['id_token'] ?? ''));
 
         return ['id' => $claims['sub'] ?? null, 'email' => $claims['email'] ?? null, 'name' => 'Пользователь Apple'];
     }
@@ -165,5 +163,61 @@ class SocialAuthController extends Controller
     private function frontendUrl(): string
     {
         return rtrim((string) env('CLIENT_URL', config('app.url')), '/');
+    }
+
+    private function verifiedAppleClaims(string $jwt): array
+    {
+        $parts = explode('.', $jwt);
+        abort_unless(count($parts) === 3, 422, 'Apple не вернул профиль пользователя.');
+
+        $header = json_decode($this->base64UrlDecode($parts[0]), true, 512, JSON_THROW_ON_ERROR);
+        $claims = json_decode($this->base64UrlDecode($parts[1]), true, 512, JSON_THROW_ON_ERROR);
+        $jwk = Http::timeout(5)->get('https://appleid.apple.com/auth/keys')->throw()->collect('keys')
+            ->firstWhere('kid', $header['kid'] ?? null);
+        abort_unless(is_array($jwk), 422, 'Не найден ключ подписи Apple.');
+
+        $signature = $this->base64UrlDecode($parts[2]);
+        $verified = openssl_verify(
+            "{$parts[0]}.{$parts[1]}",
+            $signature,
+            $this->jwkToPem($jwk),
+            OPENSSL_ALGO_SHA256,
+        );
+        abort_unless($verified === 1, 422, 'Подпись Apple недействительна.');
+
+        abort_unless(($claims['iss'] ?? null) === 'https://appleid.apple.com', 422, 'Некорректный issuer Apple.');
+        abort_unless(($claims['aud'] ?? null) === config('services.oauth.apple.client_id'), 422, 'Некорректный audience Apple.');
+
+        return $claims;
+    }
+
+    private function base64UrlDecode(string $value): string
+    {
+        return base64_decode(strtr($value, '-_', '+/').str_repeat('=', (4 - strlen($value) % 4) % 4), true) ?: '';
+    }
+
+    private function jwkToPem(array $jwk): string
+    {
+        $modulus = $this->asn1Integer($this->base64UrlDecode((string) ($jwk['n'] ?? '')));
+        $exponent = $this->asn1Integer($this->base64UrlDecode((string) ($jwk['e'] ?? '')));
+        $rsaBody = $modulus.$exponent;
+        $rsa = "\x30".$this->asn1Length(strlen($rsaBody)).$rsaBody;
+        $bitString = "\x03". $this->asn1Length(strlen($rsa) + 1)."\x00".$rsa;
+        $algorithm = "\x30\x0d\x06\x09\x2a\x86\x48\x86\xf7\x0d\x01\x01\x01\x05\x00";
+
+        return "-----BEGIN PUBLIC KEY-----\n".chunk_split(base64_encode("\x30".$this->asn1Length(strlen($algorithm) + strlen($bitString)).$algorithm.$bitString), 64, "\n")."-----END PUBLIC KEY-----\n";
+    }
+
+    private function asn1Integer(string $value): string
+    {
+        if ($value === '' || (ord($value[0]) & 0x80)) $value = "\x00".$value;
+        return "\x02".$this->asn1Length(strlen($value)).$value;
+    }
+
+    private function asn1Length(int $length): string
+    {
+        if ($length < 128) return chr($length);
+        $encoded = ltrim(pack('N', $length), "\x00");
+        return chr(0x80 | strlen($encoded)).$encoded;
     }
 }
