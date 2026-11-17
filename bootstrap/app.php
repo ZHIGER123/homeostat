@@ -1,9 +1,11 @@
 <?php
 
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -19,4 +21,18 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+
+        // Единый формат 404: Route Model Binding бросает ModelNotFoundException,
+        // который Laravel превращает в NotFoundHttpException. Внутренние детали
+        // (имя модели и id) клиенту не показываем.
+        $exceptions->render(function (NotFoundHttpException $e, Request $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                $message = $e->getPrevious() instanceof ModelNotFoundException
+                    || $e->getMessage() === '' || str_starts_with($e->getMessage(), 'The route')
+                    ? 'Ресурс не найден.'
+                    : $e->getMessage();
+
+                return response()->json(['message' => $message], 404);
+            }
+        });
     })->create();

@@ -8,6 +8,9 @@ use Illuminate\Http\Resources\Json\JsonResource;
 class TrackResource extends JsonResource
 {
     /**
+     * Путь к аудиофайлу (audio_path) намеренно не отдаётся: файл доступен
+     * только через потоковый маршрут (ТЗ, п. 5).
+     *
      * @return array<string, mixed>
      */
     public function toArray(Request $request): array
@@ -16,7 +19,6 @@ class TrackResource extends JsonResource
             'id' => $this->id,
             'title' => $this->title,
             'description' => $this->description,
-            'audio_path' => $this->audio_path,
             'cover_path' => $this->cover_path,
             'duration' => $this->duration,
             'plays_count' => $this->plays_count,
