@@ -10,6 +10,7 @@ use App\Models\User;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -106,6 +107,12 @@ class TrackService
             throw $exception;
         }
 
+        Log::info('track.created', [
+            'track_id' => $track->id,
+            'user_id' => $track->user_id,
+            'status' => $track->status->value,
+        ]);
+
         return $this->card($track);
     }
 
@@ -174,3 +181,4 @@ class TrackService
         return true;
     }
 }
+

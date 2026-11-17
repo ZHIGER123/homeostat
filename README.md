@@ -143,3 +143,12 @@ php artisan test
 ## Бизнес-правила (КП9)
 
 Описание транзакций, модерации, фильтрации и ограничений статистики: [docs/kp9-business-rules.md](docs/kp9-business-rules.md). Для проверки отката и файлов запускайте `php artisan test --filter=TrackWorkflowTest`.
+
+
+## КП10: тестирование, логирование и сдача
+
+- Матрица из 16 сценариев с ожидаемыми и фактическими результатами: [docs/kp10-test-cases.md](docs/kp10-test-cases.md).
+- Пошаговый чек-лист ручной проверки коллекции Postman: [docs/kp10-postman-checklist.md](docs/kp10-postman-checklist.md).
+- API-запросы журналируются middleware `LogApiActivity` без тела запроса, токенов, паролей и файлов. Бизнес-события создания и модерации трека записываются с идентификаторами и статусом.
+- Автоматические Feature-тесты используют отдельную SQLite-конфигурацию PHPUnit, `RefreshDatabase` и фабрики. Перед сдачей необходимо выполнить `php artisan test`, `php artisan route:list --path=api` и ручной чек-лист Postman.
+- В production следует использовать `APP_DEBUG=false`, не помещать `.env` и реальные токены в Git и ограничить доступ к логам.

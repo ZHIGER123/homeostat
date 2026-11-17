@@ -7,6 +7,7 @@ use App\Exceptions\BusinessException;
 use App\Models\Track;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Модерация треков администратором: очередь и решение (ФТ-13).
@@ -30,7 +31,7 @@ class TrackModerationService
      */
     public function decide(Track $track, TrackStatus $status, ?string $reason): Track
     {
-        return DB::transaction(function () use ($track, $status, $reason) {
+        $updated = DB::transaction(function () use ($track, $status, $reason) {
             $locked = Track::whereKey($track->id)->lockForUpdate()->firstOrFail();
             if (! $locked->status->canTransitionTo($status) || $locked->status !== TrackStatus::Pending) {
                 throw new BusinessException('Решение можно принять только по треку на модерации.');
@@ -42,5 +43,14 @@ class TrackModerationService
 
             return $locked->load(['artist', 'genre']);
         });
+
+        Log::info('track.moderated', [
+            'track_id' => $updated->id,
+            'status' => $updated->status->value,
+            'moderator_id' => request()->user()?->getAuthIdentifier(),
+        ]);
+
+        return $updated;
     }
 }
+

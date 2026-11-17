@@ -3,6 +3,7 @@
 use App\Exceptions\BusinessException;
 use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\EnsureUserIsNotBlocked;
+use App\Http\Middleware\LogApiActivity;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -23,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => EnsureUserHasRole::class,
             'not_blocked' => EnsureUserIsNotBlocked::class,
         ]);
+        $middleware->append(LogApiActivity::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
@@ -59,3 +61,4 @@ return Application::configure(basePath: dirname(__DIR__))
             }
         });
     })->create();
+
