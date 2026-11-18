@@ -6,6 +6,7 @@ use App\Models\Comment;
 use App\Models\Track;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class InteractionApiTest extends TestCase
@@ -14,6 +15,7 @@ class InteractionApiTest extends TestCase
 
     public function test_like_is_idempotent_and_unlike_returns_204(): void
     {
+        Sanctum::actingAs(User::factory()->admin()->create());
         $user = User::factory()->create();
         $track = Track::factory()->published()->create();
         $url = "/api/v1/users/{$user->id}/likes/{$track->id}";
@@ -29,6 +31,7 @@ class InteractionApiTest extends TestCase
 
     public function test_like_errors(): void
     {
+        Sanctum::actingAs(User::factory()->admin()->create());
         $user = User::factory()->create();
         $blocked = User::factory()->blocked()->create();
         $track = Track::factory()->published()->create();
@@ -43,6 +46,7 @@ class InteractionApiTest extends TestCase
     public function test_comments_can_be_created_listed_and_deleted(): void
     {
         $user = User::factory()->create();
+        Sanctum::actingAs($user);
         $track = Track::factory()->published()->create();
 
         $this->postJson("/api/v1/tracks/{$track->id}/comments", ['user_id' => $user->id, 'body' => 'Отличный драйв!'])
@@ -60,16 +64,17 @@ class InteractionApiTest extends TestCase
     public function test_comment_validation_and_business_errors(): void
     {
         $user = User::factory()->create();
+        Sanctum::actingAs($user);
         $blocked = User::factory()->blocked()->create();
         $track = Track::factory()->published()->create();
         $pending = Track::factory()->pending()->create();
 
         $this->postJson("/api/v1/tracks/{$track->id}/comments", ['user_id' => $user->id, 'body' => 'a'])
             ->assertStatus(422)->assertJsonValidationErrors(['body']);
-        $this->postJson("/api/v1/tracks/{$track->id}/comments", ['body' => 'Привет'])
-            ->assertStatus(422)->assertJsonValidationErrors(['user_id']);
-        $this->postJson("/api/v1/tracks/{$track->id}/comments", ['user_id' => $blocked->id, 'body' => 'Привет'])
-            ->assertForbidden();
+        $this->postJson("/api/v1/tracks/{$track->id}/comments", ['body' => 'Привет'])->assertCreated();
+        Sanctum::actingAs($blocked);
+        $this->postJson("/api/v1/tracks/{$track->id}/comments", ['body' => 'Привет'])->assertForbidden();
+        Sanctum::actingAs($user);
         $this->postJson("/api/v1/tracks/{$pending->id}/comments", ['user_id' => $user->id, 'body' => 'Привет'])
             ->assertStatus(409);
         $this->postJson('/api/v1/tracks/999999/comments', ['user_id' => $user->id, 'body' => 'Привет'])
@@ -78,6 +83,7 @@ class InteractionApiTest extends TestCase
 
     public function test_follow_unfollow_and_feed(): void
     {
+        Sanctum::actingAs(User::factory()->admin()->create());
         $listener = User::factory()->create();
         $artist = User::factory()->artist()->create();
         $other = User::factory()->artist()->create();
@@ -99,6 +105,7 @@ class InteractionApiTest extends TestCase
 
     public function test_follow_rules(): void
     {
+        Sanctum::actingAs(User::factory()->admin()->create());
         $listener = User::factory()->create();
         $other = User::factory()->create();
         $artist = User::factory()->artist()->create();
@@ -110,6 +117,7 @@ class InteractionApiTest extends TestCase
 
     public function test_admin_can_block_and_unblock_user_but_not_another_admin(): void
     {
+        Sanctum::actingAs(User::factory()->admin()->create());
         $user = User::factory()->create();
         $admin = User::factory()->admin()->create();
 

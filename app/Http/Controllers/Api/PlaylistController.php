@@ -12,6 +12,7 @@ use App\Services\PlaylistService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Gate;
 
 class PlaylistController extends Controller
 {
@@ -20,13 +21,18 @@ class PlaylistController extends Controller
     /** GET /api/v1/playlists?user_id= — список плейлистов. */
     public function index(IndexPlaylistRequest $request): AnonymousResourceCollection
     {
-        return PlaylistResource::collection($this->playlists->paginate($request->validated()));
+        $filters = $request->validated();
+        if (! $request->user()->isAdmin()) {
+            $filters['user_id'] = $request->user()->id;
+        }
+
+        return PlaylistResource::collection($this->playlists->paginate($filters));
     }
 
     /** POST /api/v1/playlists — создание плейлиста. */
     public function store(StorePlaylistRequest $request): JsonResponse
     {
-        $playlist = $this->playlists->create($request->validated());
+        $playlist = $this->playlists->create(array_merge($request->validated(), ['user_id' => $request->user()->id]));
 
         return (new PlaylistResource($playlist))->response()->setStatusCode(Response::HTTP_CREATED);
     }
@@ -34,18 +40,23 @@ class PlaylistController extends Controller
     /** GET /api/v1/playlists/{playlist} — плейлист с треками в порядке position. */
     public function show(Playlist $playlist): PlaylistResource
     {
+        Gate::authorize('view', $playlist);
+
         return new PlaylistResource($this->playlists->details($playlist));
     }
 
     /** PUT|PATCH /api/v1/playlists/{playlist} — переименование и описание. */
     public function update(UpdatePlaylistRequest $request, Playlist $playlist): PlaylistResource
     {
+        Gate::authorize('update', $playlist);
+
         return new PlaylistResource($this->playlists->update($playlist, $request->validated()));
     }
 
     /** DELETE /api/v1/playlists/{playlist} */
     public function destroy(Playlist $playlist): Response
     {
+        Gate::authorize('delete', $playlist);
         $this->playlists->delete($playlist);
 
         return response()->noContent();

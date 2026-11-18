@@ -4,12 +4,20 @@ namespace Tests\Feature\Api;
 
 use App\Models\Genre;
 use App\Models\Track;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class GenreApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Sanctum::actingAs(User::factory()->admin()->create());
+    }
 
     public function test_index_lists_genres_with_published_tracks_count(): void
     {

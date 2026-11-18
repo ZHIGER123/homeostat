@@ -13,14 +13,13 @@ class StoreCommentRequest extends FormRequest
 
     /**
      * Трек берётся из URL (/tracks/{track}/comments), поэтому track_id в теле не нужен.
-     * `user_id` временно передаётся в теле; в ПР8 автор определяется по токену.
+     * Автор определяется по токену Sanctum.
      *
      * @return array<string, mixed>
      */
     public function rules(): array
     {
         return [
-            'user_id' => ['required', 'integer', 'exists:users,id'],
             'body' => ['required', 'string', 'min:2', 'max:1000'],
         ];
     }
