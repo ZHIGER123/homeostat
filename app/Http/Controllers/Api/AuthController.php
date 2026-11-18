@@ -10,6 +10,7 @@ use App\Http\Requests\UpdateProfileRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Services\CaptchaService;
+use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -25,6 +26,7 @@ class AuthController extends Controller
         $user = User::create(['name' => $data['name'], 'email' => $data['email'], 'password' => $data['password'], 'role' => $data['role'] ?? UserRole::Listener]);
         return response()->json(['user' => (new UserResource($user))->resolve($request), 'token' => $user->createToken('api')->plainTextToken], 201);
     }
+
     public function login(LoginRequest $request): JsonResponse
     {
         $user = User::where('email', $request->validated('email'))->first();
@@ -32,7 +34,21 @@ class AuthController extends Controller
         if ($user->is_blocked) return response()->json(['message' => 'Пользователь заблокирован.'], 403);
         return response()->json(['user' => (new UserResource($user))->resolve($request), 'token' => $user->createToken('api')->plainTextToken]);
     }
-    public function me(Request $request): UserResource { return new UserResource($request->user()); }
-    public function updateProfile(UpdateProfileRequest $request): UserResource { $request->user()->update($request->validated()); return new UserResource($request->user()->refresh()); }
-    public function logout(Request $request): JsonResponse { $request->user()->currentAccessToken()?->delete(); return response()->json(['message' => 'Выход выполнен.']); }
+
+    public function me(Request $request, UserService $users): UserResource
+    {
+        return new UserResource($users->profile($request->user()));
+    }
+
+    public function updateProfile(UpdateProfileRequest $request): UserResource
+    {
+        $request->user()->update($request->validated());
+        return new UserResource($request->user()->refresh());
+    }
+
+    public function logout(Request $request): JsonResponse
+    {
+        $request->user()->currentAccessToken()?->delete();
+        return response()->json(['message' => 'Выход выполнен.']);
+    }
 }
