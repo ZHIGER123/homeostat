@@ -1,0 +1,19 @@
+$kind: http-request
+url: "{{base_url}}/api/v1/tracks/{{track_id}}"
+method: PATCH
+headers:
+  Accept: application/json
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "title": "Postman Track (v2)"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Код ответа 200", function () { pm.response.to.have.status(200); });
+      pm.test("Название изменено", function () { pm.expect(pm.response.json().data.title).to.eql("Postman Track (v2)"); });
+    language: text/javascript
+order: 6000

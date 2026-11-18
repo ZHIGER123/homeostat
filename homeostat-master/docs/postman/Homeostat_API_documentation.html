@@ -1,0 +1,1497 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Homeostat API (КП6) — Документация</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f6fa;
+      color: #2d3748;
+      line-height: 1.6;
+    }
+    /* ── Header ── */
+    .site-header {
+      background: linear-gradient(135deg, #ff6c37 0%, #e8450a 100%);
+      color: #fff;
+      padding: 40px 48px 36px;
+    }
+    .site-header h1 { font-size: 2rem; font-weight: 700; margin-bottom: 8px; }
+    .site-header .subtitle { font-size: 0.95rem; opacity: .85; max-width: 720px; }
+    .site-header .meta { margin-top: 16px; font-size: 0.82rem; opacity: .7; }
+
+    /* ── Layout ── */
+    .container { max-width: 1100px; margin: 0 auto; padding: 32px 24px 64px; }
+
+    /* ── TOC ── */
+    .toc {
+      background: #fff;
+      border-radius: 10px;
+      padding: 24px 28px;
+      margin-bottom: 36px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    }
+    .toc h2 { font-size: 1rem; font-weight: 700; color: #718096; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 14px; }
+    .toc ol { padding-left: 20px; }
+    .toc li { margin: 4px 0; }
+    .toc a { color: #ff6c37; text-decoration: none; font-size: 0.92rem; }
+    .toc a:hover { text-decoration: underline; }
+
+    /* ── Variables box ── */
+    .vars-box {
+      background: #fff;
+      border-radius: 10px;
+      padding: 24px 28px;
+      margin-bottom: 36px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    }
+    .vars-box h2 { font-size: 1rem; font-weight: 700; color: #718096; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 14px; }
+    .vars-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .vars-table th { text-align: left; padding: 6px 12px; background: #f7fafc; color: #4a5568; font-weight: 600; border-bottom: 2px solid #e2e8f0; }
+    .vars-table td { padding: 6px 12px; border-bottom: 1px solid #edf2f7; font-family: 'Courier New', monospace; }
+    .vars-table tr:last-child td { border-bottom: none; }
+
+    /* ── Folder section ── */
+    .folder {
+      background: #fff;
+      border-radius: 10px;
+      margin-bottom: 32px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+      overflow: hidden;
+    }
+    .folder-header {
+      background: #2d3748;
+      color: #fff;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .folder-header .folder-icon { font-size: 1.1rem; }
+    .folder-header h2 { font-size: 1.05rem; font-weight: 700; }
+    .folder-header .folder-count {
+      margin-left: auto;
+      background: rgba(255,255,255,.15);
+      border-radius: 20px;
+      padding: 2px 10px;
+      font-size: 0.78rem;
+    }
+
+    /* ── Request card ── */
+    .request-card {
+      border-bottom: 1px solid #edf2f7;
+      padding: 20px 24px;
+    }
+    .request-card:last-child { border-bottom: none; }
+    .request-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    .request-name { font-weight: 600; font-size: 0.97rem; color: #1a202c; }
+    .method-badge {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: .04em;
+      font-family: monospace;
+      flex-shrink: 0;
+    }
+    .GET    { background: #c6f6d5; color: #276749; }
+    .POST   { background: #bee3f8; color: #2b6cb0; }
+    .PUT    { background: #fefcbf; color: #744210; }
+    .PATCH  { background: #e9d8fd; color: #553c9a; }
+    .DELETE { background: #fed7d7; color: #9b2c2c; }
+
+    .url-line {
+      font-family: 'Courier New', monospace;
+      font-size: 0.85rem;
+      color: #4a5568;
+      background: #f7fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 5px;
+      padding: 6px 12px;
+      word-break: break-all;
+      margin-bottom: 10px;
+    }
+    .description {
+      font-size: 0.88rem;
+      color: #718096;
+      margin-bottom: 10px;
+      font-style: italic;
+    }
+
+    /* ── Details sections ── */
+    .details { display: flex; flex-wrap: wrap; gap: 12px; }
+    .detail-block {
+      flex: 1 1 280px;
+      background: #f7fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .detail-block .detail-title {
+      background: #edf2f7;
+      padding: 5px 12px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #4a5568;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+    .detail-block pre {
+      padding: 10px 12px;
+      font-size: 0.8rem;
+      font-family: 'Courier New', monospace;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #2d3748;
+      margin: 0;
+    }
+
+    /* ── Tests ── */
+    .tests-block { margin-top: 10px; }
+    .tests-block .detail-title {
+      background: #ebf8ff;
+      color: #2b6cb0;
+    }
+
+    /* ── Status badge ── */
+    .status-badge {
+      display: inline-block;
+      padding: 1px 7px;
+      border-radius: 3px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      margin-left: 6px;
+    }
+    .s200 { background: #c6f6d5; color: #276749; }
+    .s201 { background: #bee3f8; color: #2b6cb0; }
+    .s204 { background: #e9d8fd; color: #553c9a; }
+    .s4xx { background: #fed7d7; color: #9b2c2c; }
+    .s409 { background: #fefcbf; color: #744210; }
+    .s422 { background: #fed7d7; color: #9b2c2c; }
+    .s403 { background: #fed7d7; color: #9b2c2c; }
+
+    footer {
+      text-align: center;
+      padding: 24px;
+      font-size: 0.8rem;
+      color: #a0aec0;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════ HEADER -->
+<header class="site-header">
+  <h1>🎵 Homeostat API <span style="opacity:.7">(КП6)</span></h1>
+  <p class="subtitle">
+    REST API платформы Homeostat, версия v1. Во всех запросах: <code>Accept: application/json</code>,
+    адрес берётся из <code>{{base_url}}</code>.<br><br>
+    Запуск: поднять приложение (<code>php artisan migrate:fresh --seed &amp;&amp; php artisan serve</code>),
+    импортировать коллекцию и окружение, выполнить папки по порядку (Collection Runner).
+    Идентификаторы созданных записей сохраняются в переменные коллекции автоматически.<br><br>
+    Пользователь передаётся в теле/URL временно: после ПР8 его заменит токен Sanctum
+    (<code>Authorization: Bearer {{token}}</code>).
+  </p>
+  <p class="meta">Сгенерировано: 17 ноября 2026 &nbsp;·&nbsp; Postman Collection ID: Bb0aB1F5dD6dDC6a9040AcA2</p>
+</header>
+
+<div class="container">
+
+  <!-- ═══════════════════════════════════════════════════════ TOC -->
+  <div class="toc">
+    <h2>Содержание</h2>
+    <ol>
+      <li><a href="#s0">0. Служебные</a></li>
+      <li><a href="#s1">1. Жанры (CRUD)</a></li>
+      <li><a href="#s2">2. Треки (CRUD)</a></li>
+      <li><a href="#s3">3. Модерация (администратор)</a></li>
+      <li><a href="#s4">4. Прослушивание, комментарии, лайк</a></li>
+      <li><a href="#s5">5. Плейлисты (CRUD + состав)</a></li>
+      <li><a href="#s6">6. Подписки и лента</a></li>
+      <li><a href="#s7">7. Блокировка пользователей</a></li>
+      <li><a href="#s8">8. Негативные проверки</a></li>
+      <li><a href="#s9">9. Удаление созданных данных</a></li>
+    </ol>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ VARIABLES -->
+  <div class="vars-box">
+    <h2>Переменные коллекции</h2>
+    <table class="vars-table">
+      <thead><tr><th>Ключ</th><th>Значение по умолчанию</th></tr></thead>
+      <tbody>
+        <tr><td>base_url</td><td>http://localhost:8000</td></tr>
+        <tr><td>admin_id</td><td>1</td></tr>
+        <tr><td>artist_id</td><td>2</td></tr>
+        <tr><td>listener_id</td><td>3</td></tr>
+        <tr><td>track_id</td><td><em>(заполняется автоматически)</em></td></tr>
+        <tr><td>new_genre_id</td><td><em>(заполняется автоматически)</em></td></tr>
+        <tr><td>playlist_id</td><td><em>(заполняется автоматически)</em></td></tr>
+        <tr><td>comment_id</td><td><em>(заполняется автоматически)</em></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ 0. СЛУЖЕБНЫЕ -->
+  <div class="folder" id="s0">
+    <div class="folder-header">
+      <span class="folder-icon">🔧</span>
+      <h2>0. Служебные</h2>
+      <span class="folder-count">1 запрос</span>
+    </div>
+
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge GET">GET</span>
+        <span class="request-name">GET /api/health — проверка подключения к БД</span>
+        <span class="status-badge s200">200</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/health</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Headers</div>
+          <pre>Accept: application/json</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 200
+✔ database = ok</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ 1. ЖАНРЫ -->
+  <div class="folder" id="s1">
+    <div class="folder-header">
+      <span class="folder-icon">🎼</span>
+      <h2>1. Жанры (CRUD)</h2>
+      <span class="folder-count">4 запроса</span>
+    </div>
+
+    <!-- Список жанров -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge GET">GET</span>
+        <span class="request-name">Список жанров</span>
+        <span class="status-badge s200">200</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/genres</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Headers</div>
+          <pre>Accept: application/json</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 200
+✔ Есть поле tracks_count</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Создать жанр -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge POST">POST</span>
+        <span class="request-name">Создать жанр (slug из названия)</span>
+        <span class="status-badge s201">201</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/genres</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Headers</div>
+          <pre>Accept: application/json
+Content-Type: application/json</pre>
+        </div>
+        <div class="detail-block">
+          <div class="detail-title">Body (JSON)</div>
+          <pre>{
+  "name": "Synthwave"
+}</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 201
+✔ slug сформирован (= "synthwave")
+→ сохраняет new_genre_id</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Показать жанр -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge GET">GET</span>
+        <span class="request-name">Показать жанр</span>
+        <span class="status-badge s200">200</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/genres/{{new_genre_id}}</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Headers</div>
+          <pre>Accept: application/json</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 200</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Изменить жанр -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge PATCH">PATCH</span>
+        <span class="request-name">Изменить жанр (PATCH)</span>
+        <span class="status-badge s200">200</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/genres/{{new_genre_id}}</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Headers</div>
+          <pre>Accept: application/json
+Content-Type: application/json</pre>
+        </div>
+        <div class="detail-block">
+          <div class="detail-title">Body (JSON)</div>
+          <pre>{
+  "name": "Retro Synthwave"
+}</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 200</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ 2. ТРЕКИ -->
+  <div class="folder" id="s2">
+    <div class="folder-header">
+      <span class="folder-icon">🎵</span>
+      <h2>2. Треки (CRUD)</h2>
+      <span class="folder-count">6 запросов</span>
+    </div>
+
+    <!-- Каталог треков -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge GET">GET</span>
+        <span class="request-name">Каталог треков (по 20 на страницу)</span>
+        <span class="status-badge s200">200</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/tracks</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Headers</div>
+          <pre>Accept: application/json</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 200
+✔ Только опубликованные, без audio_path</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Поиск -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge GET">GET</span>
+        <span class="request-name">Поиск по названию/артисту</span>
+        <span class="status-badge s200">200</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/tracks?q=а&amp;per_page=5</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Query Params</div>
+          <pre>q = а
+per_page = 5</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 200</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Фильтр -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge GET">GET</span>
+        <span class="request-name">Фильтр по жанру и сортировка по лайкам</span>
+        <span class="status-badge s200">200</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/tracks?genre_id=1&amp;sort=likes_count&amp;direction=desc</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Query Params</div>
+          <pre>genre_id = 1
+sort = likes_count
+direction = desc</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 200</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Карточка трека -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge GET">GET</span>
+        <span class="request-name">Карточка трека</span>
+        <span class="status-badge s200">200</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/tracks/1</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Headers</div>
+          <pre>Accept: application/json</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 200
+✔ Есть поля artist и genre</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Загрузить трек -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge POST">POST</span>
+        <span class="request-name">Загрузить трек (статус pending)</span>
+        <span class="status-badge s201">201</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/tracks</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Headers</div>
+          <pre>Accept: application/json
+Content-Type: application/json</pre>
+        </div>
+        <div class="detail-block">
+          <div class="detail-title">Body (JSON)</div>
+          <pre>{
+  "user_id": "{{artist_id}}",
+  "genre_id": 1,
+  "title": "Postman Track",
+  "description": "Создан из Postman",
+  "audio_path": "tracks/postman-track.mp3",
+  "duration": 200
+}</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 201
+✔ Статус pending
+→ сохраняет track_id</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Изменить трек -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge PATCH">PATCH</span>
+        <span class="request-name">Изменить трек (PATCH)</span>
+        <span class="status-badge s200">200</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/tracks/{{track_id}}</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Headers</div>
+          <pre>Accept: application/json
+Content-Type: application/json</pre>
+        </div>
+        <div class="detail-block">
+          <div class="detail-title">Body (JSON)</div>
+          <pre>{
+  "title": "Postman Track (v2)"
+}</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 200
+✔ Название изменено на "Postman Track (v2)"</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ 3. МОДЕРАЦИЯ -->
+  <div class="folder" id="s3">
+    <div class="folder-header">
+      <span class="folder-icon">🛡️</span>
+      <h2>3. Модерация (администратор)</h2>
+      <span class="folder-count">4 запроса</span>
+    </div>
+
+    <!-- Очередь -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge GET">GET</span>
+        <span class="request-name">Очередь модерации</span>
+        <span class="status-badge s200">200</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/admin/tracks</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Headers</div>
+          <pre>Accept: application/json</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 200
+✔ Все треки в очереди — pending</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Отклонить без причины -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge PATCH">PATCH</span>
+        <span class="request-name">Отклонить без причины</span>
+        <span class="status-badge s422">422</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/admin/tracks/{{track_id}}/status</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Body (JSON)</div>
+          <pre>{
+  "status": "rejected"
+}</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 422
+✔ Формат ошибки {message, errors}</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Одобрить трек -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge PATCH">PATCH</span>
+        <span class="request-name">Одобрить трек</span>
+        <span class="status-badge s200">200</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/admin/tracks/{{track_id}}/status</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Body (JSON)</div>
+          <pre>{
+  "status": "published"
+}</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 200
+✔ Статус published</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Повторное решение -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge PATCH">PATCH</span>
+        <span class="request-name">Повторное решение</span>
+        <span class="status-badge s409">409</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/admin/tracks/{{track_id}}/status</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Body (JSON)</div>
+          <pre>{
+  "status": "published"
+}</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 409
+✔ Формат ошибки {message}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ 4. ПРОСЛУШИВАНИЕ -->
+  <div class="folder" id="s4">
+    <div class="folder-header">
+      <span class="folder-icon">▶️</span>
+      <h2>4. Прослушивание, комментарии, лайк</h2>
+      <span class="folder-count">8 запросов</span>
+    </div>
+
+    <!-- Прослушать трек -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge POST">POST</span>
+        <span class="request-name">Прослушать трек (засчитывается)</span>
+        <span class="status-badge s200">200</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/tracks/{{track_id}}/play</div>
+      <div class="description">Повторный вызов в течение 30 секунд не увеличивает счётчик.</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Headers</div>
+          <pre>Accept: application/json</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 200
+✔ counted = true</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Повторное прослушивание -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge POST">POST</span>
+        <span class="request-name">Повторное прослушивание (не засчитывается)</span>
+        <span class="status-badge s200">200</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/tracks/{{track_id}}/play</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 200
+✔ counted = false</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Добавить комментарий -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge POST">POST</span>
+        <span class="request-name">Добавить комментарий</span>
+        <span class="status-badge s201">201</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/tracks/{{track_id}}/comments</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Body (JSON)</div>
+          <pre>{
+  "user_id": "{{listener_id}}",
+  "body": "Отличный трек!"
+}</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 201
+→ сохраняет comment_id</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Список комментариев -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge GET">GET</span>
+        <span class="request-name">Список комментариев</span>
+        <span class="status-badge s200">200</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/tracks/{{track_id}}/comments</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 200</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Поставить лайк -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge PUT">PUT</span>
+        <span class="request-name">Поставить лайк</span>
+        <span class="status-badge s201">200 / 201</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/users/{{listener_id}}/likes/{{track_id}}</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 201 (создано) или 200 (уже было — идемпотентно)
+✔ liked = true</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Повторный лайк -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge PUT">PUT</span>
+        <span class="request-name">Повторный лайк (идемпотентно)</span>
+        <span class="status-badge s200">200</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/users/{{listener_id}}/likes/{{track_id}}</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 200</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Мои лайки -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge GET">GET</span>
+        <span class="request-name">Мои лайки</span>
+        <span class="status-badge s200">200</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/users/{{listener_id}}/likes</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 200</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Снять лайк -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge DELETE">DELETE</span>
+        <span class="request-name">Снять лайк</span>
+        <span class="status-badge s204">204</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/users/{{listener_id}}/likes/{{track_id}}</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 204</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ 5. ПЛЕЙЛИСТЫ -->
+  <div class="folder" id="s5">
+    <div class="folder-header">
+      <span class="folder-icon">📋</span>
+      <h2>5. Плейлисты (CRUD + состав)</h2>
+      <span class="folder-count">8 запросов</span>
+    </div>
+
+    <!-- Создать плейлист -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge POST">POST</span>
+        <span class="request-name">Создать плейлист с треками</span>
+        <span class="status-badge s201">201</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/playlists</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Body (JSON)</div>
+          <pre>{
+  "user_id": "{{listener_id}}",
+  "title": "Для учёбы",
+  "description": "Спокойная музыка",
+  "track_ids": [1, 2]
+}</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 201
+✔ Позиции 1 и 2
+→ сохраняет playlist_id</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Список плейлистов -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge GET">GET</span>
+        <span class="request-name">Список плейлистов пользователя</span>
+        <span class="status-badge s200">200</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/playlists?user_id={{listener_id}}</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Query Params</div>
+          <pre>user_id = {{listener_id}}</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 200</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Показать плейлист -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge GET">GET</span>
+        <span class="request-name">Показать плейлист</span>
+        <span class="status-badge s200">200</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/playlists/{{playlist_id}}</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 200</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Переименовать плейлист -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge PUT">PUT</span>
+        <span class="request-name">Переименовать плейлист</span>
+        <span class="status-badge s200">200</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/playlists/{{playlist_id}}</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Body (JSON)</div>
+          <pre>{
+  "title": "Вечерняя дорога"
+}</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 200</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Добавить трек в плейлист -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge POST">POST</span>
+        <span class="request-name">Добавить трек в плейлист</span>
+        <span class="status-badge s201">201</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/playlists/{{playlist_id}}/tracks</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Body (JSON)</div>
+          <pre>{
+  "track_id": "{{track_id}}"
+}</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 201</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Тот же трек повторно -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge POST">POST</span>
+        <span class="request-name">Тот же трек повторно</span>
+        <span class="status-badge s409">409</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/playlists/{{playlist_id}}/tracks</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Body (JSON)</div>
+          <pre>{
+  "track_id": "{{track_id}}"
+}</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 409
+✔ Формат ошибки {message}</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Изменить порядок треков -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge PUT">PUT</span>
+        <span class="request-name">Изменить порядок треков</span>
+        <span class="status-badge s200">200</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/playlists/{{playlist_id}}/tracks</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Body (JSON)</div>
+          <pre>{
+  "track_ids": ["{{track_id}}", 1, 2]
+}</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 200
+✔ Первым стоит новый трек (position = 1)</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Убрать трек из плейлиста -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge DELETE">DELETE</span>
+        <span class="request-name">Убрать трек из плейлиста</span>
+        <span class="status-badge s204">204</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/playlists/{{playlist_id}}/tracks/{{track_id}}</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 204</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ 6. ПОДПИСКИ -->
+  <div class="folder" id="s6">
+    <div class="folder-header">
+      <span class="folder-icon">🔔</span>
+      <h2>6. Подписки и лента</h2>
+      <span class="folder-count">4 запроса</span>
+    </div>
+
+    <!-- Подписаться -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge PUT">PUT</span>
+        <span class="request-name">Подписаться на артиста</span>
+        <span class="status-badge s201">200 / 201</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/users/{{listener_id}}/following/{{artist_id}}</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 201 (создано) или 200 (уже было — идемпотентно)</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Лента подписок -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge GET">GET</span>
+        <span class="request-name">Лента подписок</span>
+        <span class="status-badge s200">200</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/users/{{listener_id}}/feed</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 200</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Профиль артиста -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge GET">GET</span>
+        <span class="request-name">Профиль артиста (счётчики)</span>
+        <span class="status-badge s200">200</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/users/{{artist_id}}</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 200
+✔ followers_count ≥ 1</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Отписаться -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge DELETE">DELETE</span>
+        <span class="request-name">Отписаться</span>
+        <span class="status-badge s204">204</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/users/{{listener_id}}/following/{{artist_id}}</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 204</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ 7. БЛОКИРОВКА -->
+  <div class="folder" id="s7">
+    <div class="folder-header">
+      <span class="folder-icon">🚫</span>
+      <h2>7. Блокировка пользователей</h2>
+      <span class="folder-count">4 запроса</span>
+    </div>
+
+    <!-- Заблокировать слушателя -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge PUT">PUT</span>
+        <span class="request-name">Заблокировать слушателя</span>
+        <span class="status-badge s200">200</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/admin/users/{{listener_id}}/block</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 200
+✔ is_blocked = true</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Заблокированный: лайк → 403 -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge PUT">PUT</span>
+        <span class="request-name">Заблокированный: лайк → 403</span>
+        <span class="status-badge s403">403</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/users/{{listener_id}}/likes/{{track_id}}</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 403
+✔ Формат ошибки {message}</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Снять блокировку -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge DELETE">DELETE</span>
+        <span class="request-name">Снять блокировку</span>
+        <span class="status-badge s204">204</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/admin/users/{{listener_id}}/block</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 204</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Заблокировать администратора → 409 -->
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge PUT">PUT</span>
+        <span class="request-name">Заблокировать администратора</span>
+        <span class="status-badge s409">409</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/admin/users/{{admin_id}}/block</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 409
+✔ Формат ошибки {message}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ 8. НЕГАТИВНЫЕ -->
+  <div class="folder" id="s8">
+    <div class="folder-header">
+      <span class="folder-icon">⚠️</span>
+      <h2>8. Негативные проверки</h2>
+      <span class="folder-count">15 запросов</span>
+    </div>
+
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge GET">GET</span>
+        <span class="request-name">Несуществующий трек → 404</span>
+        <span class="status-badge s4xx">404</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/tracks/999999</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 404 · Формат {message}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge GET">GET</span>
+        <span class="request-name">Несуществующий жанр → 404</span>
+        <span class="status-badge s4xx">404</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/genres/999999</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 404 · Формат {message}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge GET">GET</span>
+        <span class="request-name">Несуществующий плейлист → 404</span>
+        <span class="status-badge s4xx">404</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/playlists/999999</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 404 · Формат {message}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge PATCH">PATCH</span>
+        <span class="request-name">Изменить несуществующий трек → 404</span>
+        <span class="status-badge s4xx">404</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/tracks/999999</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Body (JSON)</div>
+          <pre>{ "title": "x" }</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 404 · Формат {message}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge DELETE">DELETE</span>
+        <span class="request-name">Удалить несуществующий трек → 404</span>
+        <span class="status-badge s4xx">404</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/tracks/999999</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 404 · Формат {message}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge POST">POST</span>
+        <span class="request-name">Пустое тело при загрузке трека → 422</span>
+        <span class="status-badge s422">422</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/tracks</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Body (JSON)</div>
+          <pre>{}</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 422 · Формат {message, errors}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge POST">POST</span>
+        <span class="request-name">Слишком длинное название, duration = 0 → 422</span>
+        <span class="status-badge s422">422</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/tracks</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Body (JSON)</div>
+          <pre>{
+  "user_id": "{{artist_id}}",
+  "genre_id": 1,
+  "title": "xxx...xxx (143 символа)",
+  "audio_path": "a.mp3",
+  "duration": 0
+}</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 422 · Формат {message, errors}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge POST">POST</span>
+        <span class="request-name">Несуществующий жанр в треке → 422</span>
+        <span class="status-badge s422">422</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/tracks</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Body (JSON)</div>
+          <pre>{
+  "user_id": "{{artist_id}}",
+  "genre_id": 9999,
+  "title": "T",
+  "audio_path": "a.mp3",
+  "duration": 10
+}</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 422 · Формат {message, errors}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge POST">POST</span>
+        <span class="request-name">Слушатель загружает трек → 403</span>
+        <span class="status-badge s403">403</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/tracks</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Body (JSON)</div>
+          <pre>{
+  "user_id": "{{listener_id}}",
+  "genre_id": 1,
+  "title": "T",
+  "audio_path": "a.mp3",
+  "duration": 10
+}</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 403 · Формат {message}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge GET">GET</span>
+        <span class="request-name">Неверный параметр сортировки → 422</span>
+        <span class="status-badge s422">422</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/tracks?sort=password</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Query Params</div>
+          <pre>sort = password</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 422 · Формат {message, errors}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge POST">POST</span>
+        <span class="request-name">Дубликат жанра → 422</span>
+        <span class="status-badge s422">422</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/genres</div>
+      <div class="description">Если в вашей БД жанр назван иначе, подставьте существующее название.</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Body (JSON)</div>
+          <pre>{
+  "name": "Рок",
+  "slug": "rok"
+}</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 422 · Формат {message, errors}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge DELETE">DELETE</span>
+        <span class="request-name">Удалить жанр с треками → 409</span>
+        <span class="status-badge s409">409</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/genres/1</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 409 · Формат {message}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge POST">POST</span>
+        <span class="request-name">Комментарий короче 2 символов → 422</span>
+        <span class="status-badge s422">422</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/tracks/1/comments</div>
+      <div class="details">
+        <div class="detail-block">
+          <div class="detail-title">Body (JSON)</div>
+          <pre>{
+  "user_id": "{{listener_id}}",
+  "body": "a"
+}</pre>
+        </div>
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 422 · Формат {message, errors}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge DELETE">DELETE</span>
+        <span class="request-name">Убрать трек, которого нет в плейлисте → 404</span>
+        <span class="status-badge s4xx">404</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/playlists/{{playlist_id}}/tracks/{{track_id}}</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 404 · Формат {message}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge PUT">PUT</span>
+        <span class="request-name">Подписка не на артиста → 422</span>
+        <span class="status-badge s422">422</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/users/{{listener_id}}/following/{{admin_id}}</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 422 · Формат {message, errors}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ 9. УДАЛЕНИЕ -->
+  <div class="folder" id="s9">
+    <div class="folder-header">
+      <span class="folder-icon">🗑️</span>
+      <h2>9. Удаление созданных данных</h2>
+      <span class="folder-count">5 запросов</span>
+    </div>
+
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge DELETE">DELETE</span>
+        <span class="request-name">Удалить комментарий</span>
+        <span class="status-badge s204">204</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/comments/{{comment_id}}</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 204</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge DELETE">DELETE</span>
+        <span class="request-name">Удалить плейлист</span>
+        <span class="status-badge s204">204</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/playlists/{{playlist_id}}</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 204</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge DELETE">DELETE</span>
+        <span class="request-name">Удалить трек</span>
+        <span class="status-badge s204">204</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/tracks/{{track_id}}</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 204</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge GET">GET</span>
+        <span class="request-name">Трек удалён → 404</span>
+        <span class="status-badge s4xx">404</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/tracks/{{track_id}}</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 404 · Формат {message}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="request-card">
+      <div class="request-title">
+        <span class="method-badge DELETE">DELETE</span>
+        <span class="request-name">Удалить созданный жанр</span>
+        <span class="status-badge s204">204</span>
+      </div>
+      <div class="url-line">{{base_url}}/api/v1/genres/{{new_genre_id}}</div>
+      <div class="details">
+        <div class="detail-block tests-block">
+          <div class="detail-title">Тесты</div>
+          <pre>✔ Код ответа 204</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<footer>
+  Homeostat API (КП6) &nbsp;·&nbsp; Сгенерировано из Postman Collection &nbsp;·&nbsp; 17 ноября 2026
+</footer>
+
+</body>
+</html>

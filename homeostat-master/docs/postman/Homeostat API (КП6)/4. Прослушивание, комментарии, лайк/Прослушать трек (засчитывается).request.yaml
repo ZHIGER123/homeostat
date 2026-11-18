@@ -1,0 +1,13 @@
+$kind: http-request
+description: Повторный вызов в течение 30 секунд не увеличивает счётчик.
+url: "{{base_url}}/api/v1/tracks/{{track_id}}/play"
+method: POST
+headers:
+  Accept: application/json
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Код ответа 200", function () { pm.response.to.have.status(200); });
+      pm.test("counted = true", function () { pm.expect(pm.response.json().counted).to.be.true; });
+    language: text/javascript
+order: 1000

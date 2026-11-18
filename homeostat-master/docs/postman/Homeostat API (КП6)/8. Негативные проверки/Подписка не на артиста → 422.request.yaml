@@ -1,0 +1,12 @@
+$kind: http-request
+url: "{{base_url}}/api/v1/users/{{listener_id}}/following/{{admin_id}}"
+method: PUT
+headers:
+  Accept: application/json
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Код ответа 422", function () { pm.response.to.have.status(422); });
+      pm.test("Формат ошибки {message, errors}", function () { const j = pm.response.json(); pm.expect(j).to.have.property("message"); pm.expect(j).to.have.property("errors"); });
+    language: text/javascript
+order: 15000

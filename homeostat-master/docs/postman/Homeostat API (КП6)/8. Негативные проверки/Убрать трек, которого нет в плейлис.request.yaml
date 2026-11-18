@@ -1,0 +1,13 @@
+$kind: http-request
+name: Убрать трек, которого нет в плейлисте → 404
+url: "{{base_url}}/api/v1/playlists/{{playlist_id}}/tracks/{{track_id}}"
+method: DELETE
+headers:
+  Accept: application/json
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Код ответа 404", function () { pm.response.to.have.status(404); });
+      pm.test("Формат ошибки {message}", function () { pm.expect(pm.response.json()).to.have.property("message"); });
+    language: text/javascript
+order: 14000

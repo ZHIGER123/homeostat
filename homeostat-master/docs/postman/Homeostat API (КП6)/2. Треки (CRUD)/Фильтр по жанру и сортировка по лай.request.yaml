@@ -1,0 +1,15 @@
+$kind: http-request
+name: Фильтр по жанру и сортировка по лайкам
+url: "{{base_url}}/api/v1/tracks?genre_id=1&sort=likes_count&direction=desc"
+method: GET
+headers:
+  Accept: application/json
+queryParams:
+  genre_id: "1"
+  sort: likes_count
+  direction: desc
+scripts:
+  - type: afterResponse
+    code: pm.test("Код ответа 200", function () { pm.response.to.have.status(200); });
+    language: text/javascript
+order: 3000
