@@ -130,3 +130,53 @@ input, select, textarea { width: 100%; border: 1px solid var(--line); border-rad
 .turnstile-slot { min-height: 65px; display: grid; place-items: center; }
 .auth-legal { margin: 18px 0 0; color: #686d70; font-size: 10px; line-height: 1.5; text-align: center; }
 @media (max-width: 760px) { .social-grid { grid-template-columns: 1fr; }.social-button { justify-content: flex-start; padding: 0 16px; }.captcha-question { grid-template-columns: 1fr 94px; } }
+
+/* Subscriptions and billing — atmospheric, original Homeostat styling */
+.pricing-head { max-width: 860px; margin-bottom: 26px; }
+.pricing-head h1 { max-width: 760px; }
+.pricing-head p { max-width: 690px; }
+.pricing-switch { display: inline-flex; gap: 4px; padding: 4px; margin-top: 20px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.cycle-button { min-height: 34px; padding: 0 16px; border: 0; border-radius: 999px; color: var(--muted); background: transparent; font: inherit; font-size: 12px; cursor: pointer; }
+.cycle-button span { margin-left: 5px; color: var(--lime); font-size: 10px; }
+.cycle-button.is-active { color: #111; background: var(--text); }
+.pricing-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: stretch; }
+.price-card { position: relative; display: flex; flex-direction: column; min-height: 505px; padding: 26px; overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: linear-gradient(145deg, rgba(255,255,255,.055), rgba(255,255,255,.018)); box-shadow: var(--shadow); }
+.price-card::after { position: absolute; right: 0; bottom: 0; width: 200px; height: 200px; border-radius: 50%; background: radial-gradient(circle, rgba(200,242,123,.14), transparent 68%); content: ''; pointer-events: none; }
+.price-card.is-pro { border-color: rgba(255,121,101,.72); background: linear-gradient(145deg, rgba(255,121,101,.12), rgba(255,255,255,.018) 52%); }
+.price-card.is-current { border-color: var(--lime); }
+.popular-ribbon { position: absolute; top: 15px; right: 15px; padding: 6px 9px; border-radius: 999px; color: #111; background: var(--lime); font-size: 9px; font-weight: 850; letter-spacing: .08em; }
+.price-card-head { display: flex; justify-content: space-between; gap: 12px; min-height: 106px; }
+.price-card h2 { margin: 8px 0 6px; font-size: 28px; letter-spacing: -.04em; }
+.price-card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.plan-badge { color: var(--lime); font-size: 18px; }
+.current-badge { align-self: flex-start; padding: 5px 8px; border: 1px solid rgba(200,242,123,.35); border-radius: 999px; color: var(--lime); font-size: 10px; white-space: nowrap; }
+.price-line { display: flex; align-items: baseline; gap: 9px; margin: 22px 0 20px; }
+.price-line strong { color: var(--coral-soft); font-size: 31px; letter-spacing: -.04em; }
+.price-line span { color: var(--muted); font-size: 11px; }
+.price-card .button { position: relative; z-index: 1; }
+.price-card .button:disabled { cursor: default; opacity: .55; }
+.feature-list { display: grid; gap: 15px; margin: 27px 0 22px; padding: 0; list-style: none; }
+.feature-list li { display: flex; gap: 10px; align-items: flex-start; color: #d8dadb; font-size: 13px; line-height: 1.45; }
+.feature-list li span { color: var(--lime); font-weight: 900; }
+.plan-limit { display: flex; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+.plan-limit b { color: var(--text); }
+.pricing-note { margin: 18px 0 0; color: var(--muted); font-size: 11px; text-align: center; }
+.billing-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; max-width: 1000px; }
+.billing-card { position: relative; min-height: 250px; padding: 26px; overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+.billing-card::before { position: absolute; top: -90px; right: -40px; width: 210px; height: 210px; border-radius: 50%; background: radial-gradient(circle, rgba(255,121,101,.2), transparent 68%); content: ''; pointer-events: none; }
+.billing-card-top { position: relative; z-index: 1; display: flex; justify-content: space-between; gap: 18px; }
+.billing-card h2 { margin: 9px 0 5px; font-size: 27px; letter-spacing: -.04em; }
+.billing-card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.plan-orb { display: grid; place-items: center; flex: 0 0 54px; width: 54px; height: 54px; border-radius: 50%; color: #111; background: linear-gradient(135deg, var(--coral), #c74da5); font-size: 22px; font-weight: 900; }
+.billing-date { margin-top: 27px !important; padding-top: 16px; border-top: 1px solid var(--line); }
+.billing-date b { color: var(--text); }
+.billing-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 27px; }
+.billing-actions .button { min-height: 38px; font-size: 11px; }
+.usage-percent { color: var(--lime); font-size: 29px; font-weight: 800; }
+.usage-track { height: 10px; margin: 36px 0 12px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.08); }
+.usage-track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--lime), var(--coral)); }
+.usage-foot { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 11px; }
+.usage-foot a { color: var(--coral-soft); }
+.unlimited-line { display: flex; gap: 10px; align-items: center; margin-top: 45px; color: var(--lime); font-size: 14px; font-weight: 700; }
+@media (max-width: 980px) { .pricing-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.price-card:first-child { grid-column: 1 / -1; min-height: auto; }.price-card:first-child .feature-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .pricing-grid, .billing-layout { grid-template-columns: 1fr; }.price-card:first-child { grid-column: auto; }.price-card:first-child .feature-list { grid-template-columns: 1fr; }.price-card { min-height: 0; }.pricing-switch { width: 100%; }.cycle-button { flex: 1; padding: 0 8px; }.billing-card { min-height: 0; }.usage-foot { flex-direction: column; gap: 6px; } }
