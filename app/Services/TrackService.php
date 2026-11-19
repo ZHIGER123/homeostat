@@ -18,6 +18,7 @@ class TrackService
 {
     public const MAX_PENDING_PER_ARTIST = 10;
     public const PLAY_THROTTLE_SECONDS = 30;
+
     public function __construct(private readonly UploadQuotaService $quota) {}
 
     public function catalog(array $filters): LengthAwarePaginator
@@ -29,6 +30,7 @@ class TrackService
             ->when(isset($filters['min_plays']), fn ($query) => $query->where('plays_count', '>=', $filters['min_plays']))
             ->orderBy($sort, $direction)->orderByDesc('id')->paginate($filters['per_page'] ?? 20)->withQueryString();
     }
+
     public function card(Track $track): Track { return $track->load(['artist', 'genre'])->loadCount(['likes', 'comments']); }
 
     public function create(array $data): Track
@@ -65,6 +67,16 @@ class TrackService
         });
         return $this->card($updated);
     }
+
     public function delete(Track $track): void { $audio = $track->audio_path; $cover = $track->cover_path; $track->delete(); Storage::disk('local')->delete($audio); if ($cover) Storage::disk('public')->delete($cover); }
-    public function registerPlay(Track $track, string $clientKey): bool { if ($track->status !== TrackStatus::Published) throw new NotFoundHttpException('Трек недоступен для прослушивания.'); $key = sprintf('track-play:%d:%s', $track->id, $clientKey); if (! Cache::add($key, true, now()->addSeconds(self::PLAY_THROTTLE_SECONDS))) return false; $track->increment('plays_count'); return true; }
+
+    public function registerPlay(Track $track, string $clientKey): bool
+    {
+        if ($track->status !== TrackStatus::Published) throw new NotFoundHttpException('Трек недоступен для прослушивания.');
+        $key = sprintf('track-play:%d:%s', $track->id, $clientKey);
+        if (! Cache::add($key, true, now()->addSeconds(self::PLAY_THROTTLE_SECONDS))) return false;
+        $track->increment('plays_count');
+        $track->refresh();
+        return true;
+    }
 }

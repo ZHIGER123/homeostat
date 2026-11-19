@@ -100,7 +100,7 @@ class SocialAuthController extends Controller
         if ($provider === 'google') {
             $data = Http::withToken($token['access_token'])->get($configuration['userinfo'])->throw()->json();
 
-            return ['id' => $data['sub'], 'email' => $data['email'] ?? null, 'name' => $data['name'] ?? null];
+            return ['id' => $data['sub'], 'email' => $data['email'] ?? null, 'name' => $data['name'] ?? null, 'verified' => (bool) ($data['email_verified'] ?? false)];
         }
 
         if ($provider === 'github') {
@@ -112,17 +112,17 @@ class SocialAuthController extends Controller
                 ->firstWhere('primary', true);
             $email = $data['email'] ?? (is_array($primaryEmail) ? ($primaryEmail['email'] ?? null) : null);
 
-            return ['id' => (string) $data['id'], 'email' => $email, 'name' => $data['name'] ?: $data['login']];
+            return ['id' => (string) $data['id'], 'email' => $email, 'name' => $data['name'] ?: $data['login'], 'verified' => is_array($primaryEmail) && (bool) ($primaryEmail['verified'] ?? false)];
         }
 
         $claims = $this->verifiedAppleClaims((string) ($token['id_token'] ?? ''));
 
-        return ['id' => $claims['sub'] ?? null, 'email' => $claims['email'] ?? null, 'name' => 'Пользователь Apple'];
+        return ['id' => $claims['sub'] ?? null, 'email' => $claims['email'] ?? null, 'name' => 'Пользователь Apple', 'verified' => filter_var($claims['email_verified'] ?? false, FILTER_VALIDATE_BOOLEAN)];
     }
 
     private function findOrCreateUser(array $profile, string $role): User
     {
-        abort_unless($profile['id'] && filter_var($profile['email'] ?? null, FILTER_VALIDATE_EMAIL), 422, 'Провайдер не вернул подтверждённый email.');
+        abort_unless($profile['id'] && filter_var($profile['email'] ?? null, FILTER_VALIDATE_EMAIL) && ($profile['verified'] ?? false), 422, 'Провайдер не вернул подтверждённый email.');
 
         $user = User::where('oauth_provider', request()->route('provider'))
             ->where('oauth_id', $profile['id'])
