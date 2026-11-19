@@ -214,3 +214,17 @@ body:has(.global-player) .content { padding-bottom: 130px; }
 
 .pro-badge{display:inline-block;vertical-align:middle;margin-left:.35rem;padding:.12rem .4rem;border-radius:.35rem;background:#c8f36a;color:#10130d;font-size:.65rem;font-weight:800;letter-spacing:.05em}
 .creator-features{margin:1.5rem 0}
+
+/* The compact player remains in the sidebar while its audio element stays alive. */
+.player-end { justify-self:end; display:flex; gap:14px; align-items:center; }
+.player-collapse, .mini-player-play { border:1px solid #424848; border-radius:50%; background:#202425; color:#f5f7f1; width:34px; height:34px; cursor:pointer; }
+.global-player.is-minimized { left:14px; right:auto; bottom:16px; width:220px; box-sizing:border-box; grid-template-columns:minmax(0,1fr) 34px; gap:8px; padding:9px; border:1px solid #3b4240; border-radius:12px; }
+.mini-player-expand { display:flex; min-width:0; gap:9px; align-items:center; border:0; background:transparent; color:inherit; text-align:left; cursor:pointer; padding:0; }
+.mini-player-expand .player-disc { flex-basis:44px; height:44px; }
+.mini-player-label { display:block; min-width:0; }
+.mini-player-label b, .mini-player-label small { display:block; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.mini-player-label b { font-size:12px; }.mini-player-label small { color:#a5aaa8; font-size:11px; margin-top:4px; }
+.mini-player-play { background:#c8f779; color:#151915; border:0; }
+body:has(.global-player.is-minimized) .content { padding-bottom:40px; }
+@media (max-width:760px) { .global-player.is-minimized { left:auto; right:12px; bottom:12px; width:200px; } }
+@media (min-width:761px) { body:has(.global-player.is-minimized) .sidebar-bottom { padding-bottom:84px; } }
