@@ -234,7 +234,10 @@ async function render() {
     let content = ''; let title = 'Обзор';
     try {
         if (route.path === 'tracks') { await ensureGenres(); await loadTracks(route.params); content = tracksView(); }
-        else if (route.path.startsWith('tracks/')) { const id = route.path.split('/')[1]; const result = await api(`/tracks/${id}`, { auth: false }); state.currentTrack = dataOf(result); const comments = itemsOf(await api(`/tracks/${id}/comments`, { auth: false })); state.currentTrackLiked = await checkLiked(id); content = trackDetailView(state.currentTrack, comments); title = 'Трек'; }
+        else if (route.path.startsWith('tracks/')) { const id = route.path.split('/')[1]; // Send the optional bearer token so the API can authorize the owner/admin
+            // to view a pending track immediately after upload. Guests still get
+            // the same server-side 404 for unpublished tracks.
+            const result = await api(`/tracks/${id}`); state.currentTrack = dataOf(result); const comments = itemsOf(await api(`/tracks/${id}/comments`)); state.currentTrackLiked = await checkLiked(id); content = trackDetailView(state.currentTrack, comments); title = 'Трек'; }
         else if (route.path === 'feed') { requireAuth(); const result = await api(`/users/${state.user.id}/feed`); content = trackCollectionView(itemsOf(result), 'Моя лента', 'Новые публикации артистов, на которых вы подписаны.'); title = 'Моя лента'; }
         else if (route.path === 'favorites') { requireAuth(); const result = await api(`/users/${state.user.id}/likes`); content = trackCollectionView(itemsOf(result), 'Избранное', 'Треки, которые вы сохранили лайком.'); title = 'Избранное'; }
         else if (route.path === 'playlists') { requireAuth(); content = playlistListView(itemsOf(await api('/playlists'))); title = 'Плейлисты'; }
