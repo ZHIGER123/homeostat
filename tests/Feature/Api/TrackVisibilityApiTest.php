@@ -3,15 +3,48 @@
 namespace Tests\Feature\Api;
 
 use App\Models\Comment;
+use App\Models\Genre;
 use App\Models\Track;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class TrackVisibilityApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Storage::fake('local');
+    }
+
+
+    public function test_owner_can_open_the_pending_track_returned_by_upload(): void
+    {
+        $owner = User::factory()->artist()->create();
+        $genre = Genre::factory()->create();
+        Sanctum::actingAs($owner);
+
+        $response = $this->postJson('/api/v1/tracks', [
+            'title' => 'Uploaded from the studio',
+            'genre_id' => $genre->id,
+            'duration' => 120,
+            'audio' => UploadedFile::fake()->create('uploaded.mp3', 100, 'audio/mpeg'),
+        ])->assertCreated()->assertJsonPath('data.status', 'pending');
+
+        $trackId = $response->json('data.id');
+        $this->getJson("/api/v1/tracks/{$trackId}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $trackId)
+            ->assertJsonPath('data.status', 'pending');
+        $this->getJson("/api/v1/tracks/{$trackId}/comments")
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+    }
 
     public function test_pending_track_and_comments_are_visible_only_to_owner_and_admin(): void
     {
