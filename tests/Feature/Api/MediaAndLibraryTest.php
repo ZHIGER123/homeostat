@@ -31,7 +31,7 @@ class MediaAndLibraryTest extends TestCase
         $user = User::factory()->artist()->create(); Sanctum::actingAs($user);
         $genre = Genre::factory()->create();
         $this->postJson('/api/v1/tracks', ['title' => 'Bad', 'genre_id' => $genre->id, 'audio' => UploadedFile::fake()->create('bad.mp3', 20, 'audio/mpeg')])->assertUnprocessable()->assertJsonValidationErrors('audio');
-        Track::factory()->published()->create(['user_id' => $user->id, 'duration' => 3600]);
+        Track::factory()->published()->create(['user_id' => $user->id, 'duration' => 10800, 'created_at' => now()->subMonths(3)]);
         $this->postJson('/api/v1/tracks', ['title' => 'Over limit', 'genre_id' => $genre->id, 'audio' => TestAudio::wav()])->assertStatus(409);
         $this->assertDatabaseMissing('tracks', ['title' => 'Over limit']);
     }
