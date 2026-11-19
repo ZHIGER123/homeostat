@@ -33,7 +33,7 @@ class TrackApiTest extends TestCase
             'genre_id' => $genre->id,
             'title' => 'Night Drive',
             'description' => 'Synthwave',
-            'audio' => UploadedFile::fake()->create('night-drive.mp3', 100, 'audio/mpeg'),
+            'audio' => \Tests\Support\TestAudio::wav(),
             'duration' => 214,
         ];
     }

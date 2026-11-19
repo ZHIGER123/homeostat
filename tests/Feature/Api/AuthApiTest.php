@@ -16,7 +16,9 @@ class AuthApiTest extends TestCase
 
     public function test_registration_creates_listener_and_returns_token_without_password(): void
     {
-        $response = $this->postJson('/api/v1/register', ['name' => 'Новый', 'email' => 'new@example.com', 'password' => 'password1', 'password_confirmation' => 'password1']);
+        $challenge = $this->getJson('/api/v1/auth/captcha')->assertOk()->json();
+        preg_match('/(\d+)\s*\+\s*(\d+)/u', $challenge['question'], $parts);
+        $response = $this->postJson('/api/v1/register', ['name' => 'Новый', 'email' => 'new@example.com', 'password' => 'password1', 'password_confirmation' => 'password1', 'captcha_id' => $challenge['id'], 'captcha_answer' => (string) ((int) $parts[1] + (int) $parts[2])]);
         $response->assertCreated()->assertJsonPath('user.role', 'listener')->assertJsonStructure(['user', 'token'])->assertJsonMissingPath('user.password');
         $this->assertDatabaseHas('users', ['email' => 'new@example.com', 'role' => 'listener']);
         $this->assertNotSame('password1', User::where('email', 'new@example.com')->firstOrFail()->password);

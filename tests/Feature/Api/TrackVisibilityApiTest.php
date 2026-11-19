@@ -33,7 +33,7 @@ class TrackVisibilityApiTest extends TestCase
             'title' => 'Uploaded from the studio',
             'genre_id' => $genre->id,
             'duration' => 120,
-            'audio' => UploadedFile::fake()->create('uploaded.mp3', 100, 'audio/mpeg'),
+            'audio' => \Tests\Support\TestAudio::wav(),
         ])->assertCreated()->assertJsonPath('data.status', 'pending');
 
         $trackId = $response->json('data.id');
