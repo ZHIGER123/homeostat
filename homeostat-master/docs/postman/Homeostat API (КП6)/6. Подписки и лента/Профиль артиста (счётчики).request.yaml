@@ -1,0 +1,12 @@
+$kind: http-request
+url: "{{base_url}}/api/v1/users/{{artist_id}}"
+method: GET
+headers:
+  Accept: application/json
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Код ответа 200", function () { pm.response.to.have.status(200); });
+      pm.test("followers_count ≥ 1", function () { pm.expect(pm.response.json().data.followers_count).to.be.at.least(1); });
+    language: text/javascript
+order: 3000

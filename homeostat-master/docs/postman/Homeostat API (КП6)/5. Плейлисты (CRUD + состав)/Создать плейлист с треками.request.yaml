@@ -1,0 +1,26 @@
+$kind: http-request
+url: "{{base_url}}/api/v1/playlists"
+method: POST
+headers:
+  Accept: application/json
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "user_id": "{{listener_id}}",
+      "title": "Для учёбы",
+      "description": "Спокойная музыка",
+      "track_ids": [
+        1,
+        2
+      ]
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Код ответа 201", function () { pm.response.to.have.status(201); });
+      pm.test("Позиции 1 и 2", function () { const t = pm.response.json().data.tracks; pm.expect(t.map(x => x.position)).to.eql([1, 2]); });
+      pm.collectionVariables.set("playlist_id", pm.response.json().data.id);
+    language: text/javascript
+order: 1000

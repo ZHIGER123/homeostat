@@ -1,0 +1,10 @@
+# Use this workspace to collaborate
+workspace:
+  id: 85c160c0-8f3e-471f-8ace-88ce5e43998e
+
+localResources:
+  collections:
+    - ../docs/postman/Homeostat.postman_collection.json
+    - ../docs/postman/Homeostat API (КП6)
+  environments:
+    - ../docs/postman/Homeostat — local.environment.yaml

@@ -1,0 +1,25 @@
+$kind: http-request
+url: "{{base_url}}/api/v1/tracks"
+method: POST
+headers:
+  Accept: application/json
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "user_id": "{{artist_id}}",
+      "genre_id": 1,
+      "title": "Postman Track",
+      "description": "Создан из Postman",
+      "audio_path": "tracks/postman-track.mp3",
+      "duration": 200
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Код ответа 201", function () { pm.response.to.have.status(201); });
+      pm.test("Статус pending", function () { pm.expect(pm.response.json().data.status).to.eql("pending"); });
+      pm.collectionVariables.set("track_id", pm.response.json().data.id);
+    language: text/javascript
+order: 5000

@@ -1,0 +1,21 @@
+$kind: http-request
+description: Если в вашей БД жанр назван иначе, подставьте существующее название.
+url: "{{base_url}}/api/v1/genres"
+method: POST
+headers:
+  Accept: application/json
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Рок",
+      "slug": "rok"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Код ответа 422", function () { pm.response.to.have.status(422); });
+      pm.test("Формат ошибки {message, errors}", function () { const j = pm.response.json(); pm.expect(j).to.have.property("message"); pm.expect(j).to.have.property("errors"); });
+    language: text/javascript
+order: 11000
