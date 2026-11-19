@@ -23,8 +23,8 @@
 | 11 | `DELETE` | `/api/v1/genres/{genre}` | `GenreController@destroy` | Удаление жанра; нельзя, если у жанра есть треки | Админ | — | 204 | 401, 403, 404, 409 | ФТ-14 | Реализовано |
 | 12 | `GET` | `/api/v1/tracks` | `TrackController@index` | Каталог опубликованных треков: поиск q (название, артист), фильтр genre_id, сортировка sort/direction, пагинация по 20 | Гость | query: q, genre_id, min_plays, sort, direction, per_page, page | 200 | 422 | ФТ-5, ФТ-6 | Реализовано |
 | 13 | `GET` | `/api/v1/tracks/{track}` | `TrackController@show` | Карточка трека с артистом, жанром и счётчиками лайков и комментариев | Гость | — | 200 | 404 | ФТ-5 | Реализовано |
-| 14 | `POST` | `/api/v1/tracks` | `TrackController@store` | Загрузка трека; создаётся со статусом pending, не более 10 треков на модерации | Артист | genre_id, title, description, audio (файл), cover (файл, необяз.), duration | 201 | 401, 403, 409, 422 | ФТ-3 | Реализовано |
-| 15 | `PUT|PATCH` | `/api/v1/tracks/{track}` | `TrackController@update` | Изменение своего трека; после изменения published/rejected → pending | Артист | genre_id, title, description, duration | 200 | 401, 403, 404, 422 | ФТ-4 | Реализовано |
+| 14 | `POST` | `/api/v1/tracks` | `TrackController@store` | Загрузка трека; создаётся со статусом pending, не более 10 треков на модерации | Артист | genre_id, title, description, audio (файл), cover (файл, необяз.); длительность определяется сервером | 201 | 401, 403, 409, 422 | ФТ-3 | Реализовано |
+| 15 | `PUT|PATCH` | `/api/v1/tracks/{track}` | `TrackController@update` | Изменение своего трека; после изменения published/rejected → pending | Артист | genre_id, title, description (длительность менять нельзя) | 200 | 401, 403, 404, 422 | ФТ-4 | Реализовано |
 | 16 | `DELETE` | `/api/v1/tracks/{track}` | `TrackController@destroy` | Удаление своего трека (комментарии, лайки, записи плейлистов — каскадом) | Артист | — | 204 | 401, 403, 404 | ФТ-4 | Реализовано |
 | 17 | `POST` | `/api/v1/tracks/{track}/play` | `TrackController@play` | Учёт прослушивания: не чаще 1 раза за 30 с от одного клиента | Гость | — | 200 | 404 | ФТ-7 | Реализовано |
 | 18 | `GET` | `/api/v1/tracks/{track}/stream` | `TrackController@stream` | Потоковая отдача аудиофайла (Storage) | Гость | — | 200, 206 | 404 | ФТ-7 | Реализовано |
@@ -73,3 +73,17 @@
 ## Примечания КП8
 
 Срок токена по умолчанию — 10 080 минут; настраивается через `SANCTUM_TOKEN_EXPIRATION`. Аудио загружается через multipart и хранится в приватном локальном хранилище, обложки — на публичном диске. Статистика выбирает треки по дате их создания и возвращает накопленные счётчики, а не события за период.
+
+
+## Медиа и библиотека
+
+Для загрузки аудио серверу необходим `ffprobe` из FFmpeg. Фактическая длительность определяется на сервере, округляется вверх до целой секунды и проверяется по лимиту тарифа. Устаревшее поле `duration` при создании игнорируется; при изменении трека оно не меняет сохранённую длительность.
+
+- `GET /api/v1/tracks/{track}/cover` — обложка опубликованного трека.
+- `POST /api/v1/me/avatar` — multipart-поле `avatar` (JPG/PNG, не более 5 МБ).
+- `GET /api/v1/users/{user}/avatar` — загруженный аватар.
+- `GET /api/v1/me/following` и `/api/v1/me/liked-playlists` — коллекции текущего пользователя с пагинацией.
+- `GET /api/v1/playlists/discover?q=...` — поиск публичных плейлистов; приватные не выдаются.
+- `PATCH /api/v1/playlists/{playlist}` принимает `is_public`: только владелец или администратор может изменить доступность.
+- `GET`, `PUT`, `DELETE /api/v1/playlists/{playlist}/like` — статус, добавление и удаление лайка; добавить можно только публичный плейлист.
+- `GET /api/v1/users/{user}/following/{artist}` и `/api/v1/users/{user}/likes/{track}` — статус подписки и лайка для владельца данных или администратора.
