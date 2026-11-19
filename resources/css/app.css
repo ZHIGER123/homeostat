@@ -228,3 +228,13 @@ body:has(.global-player) .content { padding-bottom: 130px; }
 body:has(.global-player.is-minimized) .content { padding-bottom:40px; }
 @media (max-width:760px) { .global-player.is-minimized { left:auto; right:12px; bottom:12px; width:200px; } }
 @media (min-width:761px) { body:has(.global-player.is-minimized) .sidebar-bottom { padding-bottom:84px; } }
+
+
+/* Google-only sign in + 16+ confirmation */
+.social-grid-single { grid-template-columns: 1fr; }
+.age-check { display: flex; align-items: center; gap: .5rem; margin: .75rem 0; font-size: .9rem; cursor: pointer; }
+.age-check input { width: 1.1rem; height: 1.1rem; accent-color: #d14e44; }
+.age-check.is-error { color: #d14e44; }
+/* Moderation preview player */
+.moderation-preview { display: flex; flex-direction: column; gap: .4rem; min-width: 180px; }
+.moderation-audio { width: 100%; max-width: 260px; height: 36px; }

@@ -14,7 +14,7 @@ use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 
 class EmailOtpService
 {
-    public function requestCode(string $email, string $name, string $role): void
+    public function requestCode(string $email, string $name, string $role, ?string $birthDate = null): void
     {
         $email = $this->normalize($email);
         $cooldown = $this->cooldownKey($email);
@@ -28,7 +28,7 @@ class EmailOtpService
             'email' => $email,
             'purpose' => 'registration',
             'code_hash' => Hash::make($code),
-            'payload' => json_encode(['name' => trim($name), 'role' => $role], JSON_THROW_ON_ERROR),
+            'payload' => json_encode(['name' => trim($name), 'role' => $role, 'birth_date' => $birthDate], JSON_THROW_ON_ERROR),
             'expires_at' => now()->addMinutes((int) config('services.email_otp.ttl', 10)),
         ]);
 
@@ -77,8 +77,9 @@ class EmailOtpService
             'email' => $email,
             'password' => Str::random(64),
             'role' => 'listener',
+            'birth_date' => $payload['birth_date'] ?? null,
         ]);
-        $user->forceFill(['email_verified_at' => now()])->save();
+        $user->forceFill(['email_verified_at' => now(), 'age_confirmed_at' => now()])->save();
 
         return $user->refresh();
     }

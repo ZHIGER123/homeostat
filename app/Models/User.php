@@ -15,9 +15,10 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
-    protected $fillable = ['name', 'email', 'oauth_provider', 'oauth_id', 'password', 'role', 'bio', 'social_links', 'avatar_path', 'is_blocked'];
+    protected $fillable = ['name', 'email', 'oauth_provider', 'oauth_id', 'password', 'role', 'bio', 'social_links', 'avatar_path', 'is_blocked', 'birth_date', 'age_confirmed_at'];
+    public const MIN_AGE = 16;
     protected $hidden = ['password', 'remember_token'];
-    protected function casts(): array { return ['email_verified_at' => 'datetime', 'password' => 'hashed', 'role' => UserRole::class, 'is_blocked' => 'boolean', 'social_links' => 'array']; }
+    protected function casts(): array { return ['email_verified_at' => 'datetime', 'password' => 'hashed', 'role' => UserRole::class, 'is_blocked' => 'boolean', 'social_links' => 'array', 'birth_date' => 'date', 'age_confirmed_at' => 'datetime']; }
     public function tracks(): HasMany { return $this->hasMany(Track::class); }
     public function subscription(): HasOne { return $this->hasOne(Subscription::class); }
     public function currentPlan(): string { $subscription = $this->relationLoaded('subscription') ? $this->subscription : $this->subscription()->first(); return $subscription && $subscription->active() ? $subscription->plan : 'free'; }

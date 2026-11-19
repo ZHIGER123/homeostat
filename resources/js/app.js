@@ -126,9 +126,11 @@ function formMessage(message = '') { return `<p class="form-message" data-form-m
 function fieldError(errors, field) { return errors?.[field]?.[0] ? `<small class="field-error">${escapeHtml(errors[field][0])}</small>` : ''; }
 
 function socialButtons(mode) {
-    const suffix = '';
-    return `<div class="auth-divider"><span>или продолжить через</span></div><div class="social-grid"><a class="social-button social-google" data-provider="google" href="${apiUrl(`/auth/google/redirect${suffix}`)}"><b>G</b><span>Google</span></a><a class="social-button social-apple" data-provider="apple" href="${apiUrl(`/auth/apple/redirect${suffix}`)}"><b>●</b><span>Apple ID</span></a><a class="social-button social-github" data-provider="github" href="${apiUrl(`/auth/github/redirect${suffix}`)}"><b>◈</b><span>GitHub</span></a></div>`;
+    return `<div class="auth-divider"><span>или продолжить через</span></div><label class="age-check"><input type="checkbox" data-age-confirm> <span>Мне исполнилось 16 лет</span></label><div class="social-grid social-grid-single"><a class="social-button social-google" data-provider="google" data-action="google-login" href="${apiUrl('/auth/google/redirect?age_confirmed=1')}"><b>G</b><span>Войти через Google</span></a></div>`;
 }
+
+function maxBirthDate() { const d = new Date(); d.setFullYear(d.getFullYear() - 16); return d.toISOString().slice(0, 10); }
+function isOldEnough(value) { return Boolean(value) && value <= maxBirthDate(); }
 
 function captchaMarkup() {
     const captcha = state.captcha || {};
@@ -141,9 +143,9 @@ function captchaMarkup() {
 function loginView(mode = 'login', error = '') {
     const register = mode === 'register';
     const fields = register
-        ? `<label>Имя<input name="name" autocomplete="name" placeholder="Как к тебе обращаться" required><span class="inline-error" data-error="name"></span></label><label>Email<input name="email" type="email" autocomplete="email" placeholder="you@example.com" required><span class="inline-error" data-error="email"></span></label>${captchaMarkup()}<div class="email-code-actions"><button class="button button-light" type="button" data-action="request-email-code">Получить код на почту</button><span class="inline-error" data-email-code-status></span></div><label class="is-hidden" data-email-code-field>Код из письма<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 цифр"><span class="inline-error" data-error="code"></span></label>`
+        ? `<label>Имя<input name="name" autocomplete="name" placeholder="Как к тебе обращаться" required><span class="inline-error" data-error="name"></span></label><label>Email<input name="email" type="email" autocomplete="email" placeholder="you@example.com" required><span class="inline-error" data-error="email"></span></label><label>Дата рождения<input name="birth_date" type="date" autocomplete="bday" min="1900-01-01" max="${maxBirthDate()}" required><span class="inline-error" data-error="birth_date"></span></label>${captchaMarkup()}<div class="email-code-actions"><button class="button button-light" type="button" data-action="request-email-code">Получить код на почту</button><span class="inline-error" data-email-code-status></span></div><label class="is-hidden" data-email-code-field>Код из письма<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 цифр"><span class="inline-error" data-error="code"></span></label>`
         : `<label>Email<input name="email" type="email" autocomplete="email" placeholder="you@example.com" required><span class="inline-error" data-error="email"></span></label><label>Пароль<input name="password" type="password" autocomplete="current-password" placeholder="Минимум 8 символов" required><span class="inline-error" data-error="password"></span></label>`;
-    return `<div class="auth-layout"><section class="auth-art"><div class="orb orb-one"></div><div class="orb orb-two"></div><span class="eyebrow">SOUND • STATE • HOME</span><h1>Найди звук,<br><em>который остаётся.</em></h1><p>Homeostat собирает музыку вокруг твоего состояния — от первой ноты до собственного плейлиста.</p><div class="wave-hero" aria-hidden="true">${Array.from({ length: 32 }, (_, i) => `<i style="--h:${20 + ((i * 17) % 76)}%"></i>`).join('')}</div><div class="auth-art-note">Создавай свою сцену. Слушай своё.</div></section><section class="auth-card-wrap"><div class="auth-card"><div class="auth-card-head"><span class="eyebrow">${register ? 'NEW ACCOUNT' : 'WELCOME BACK'}</span><h2>${register ? 'Создай свой профиль' : 'С возвращением'}</h2><p>${register ? 'Код подтверждения придёт на указанную почту.' : 'Войдите, чтобы продолжить слушать.'}</p></div>${socialButtons(mode)}<div class="auth-divider auth-divider-small"><span>${register ? 'или создай аккаунт по email' : 'или войди по email'}</span></div><form id="auth-form" data-mode="${register ? 'register' : 'login'}" novalidate>${fields}${formMessage(error)}<button class="button button-primary button-wide" type="submit"><span>${register ? 'Подтвердить и создать' : 'Войти в Homeostat'}</span><b>→</b></button></form><div class="auth-switch">${register ? 'Уже есть аккаунт?' : 'Впервые здесь?'} <a href="#${register ? 'login' : 'register'}">${register ? 'Войти' : 'Создать профиль'}</a></div><p class="auth-legal">Продолжая, вы принимаете правила Homeostat и подтверждаете, что вам исполнилось 13 лет.</p></div></section></div>`;
+    return `<div class="auth-layout"><section class="auth-art"><div class="orb orb-one"></div><div class="orb orb-two"></div><span class="eyebrow">SOUND • STATE • HOME</span><h1>Найди звук,<br><em>который остаётся.</em></h1><p>Homeostat собирает музыку вокруг твоего состояния — от первой ноты до собственного плейлиста.</p><div class="wave-hero" aria-hidden="true">${Array.from({ length: 32 }, (_, i) => `<i style="--h:${20 + ((i * 17) % 76)}%"></i>`).join('')}</div><div class="auth-art-note">Создавай свою сцену. Слушай своё.</div></section><section class="auth-card-wrap"><div class="auth-card"><div class="auth-card-head"><span class="eyebrow">${register ? 'NEW ACCOUNT' : 'WELCOME BACK'}</span><h2>${register ? 'Создай свой профиль' : 'С возвращением'}</h2><p>${register ? 'Код подтверждения придёт на указанную почту.' : 'Войдите, чтобы продолжить слушать.'}</p></div>${socialButtons(mode)}<div class="auth-divider auth-divider-small"><span>${register ? 'или создай аккаунт по email' : 'или войди по email'}</span></div><form id="auth-form" data-mode="${register ? 'register' : 'login'}" novalidate>${fields}${formMessage(error)}<button class="button button-primary button-wide" type="submit"><span>${register ? 'Подтвердить и создать' : 'Войти в Homeostat'}</span><b>→</b></button></form><div class="auth-switch">${register ? 'Уже есть аккаунт?' : 'Впервые здесь?'} <a href="#${register ? 'login' : 'register'}">${register ? 'Войти' : 'Создать профиль'}</a></div><p class="auth-legal">Продолжая, вы принимаете правила Homeostat и подтверждаете, что вам исполнилось 16 лет. Homeostat — платформа 16+.</p></div></section></div>`;
 }
 
 
@@ -184,6 +186,7 @@ async function completeOAuth() {
 
 let renderVersion = 0;
 async function render() {
+    moderationPreviewUrls?.forEach(url => URL.revokeObjectURL(url)); moderationPreviewUrls?.clear();
     const version = ++renderVersion;
     const route = currentRoute();
     if (!state.token && !['login', 'register', 'tracks', 'pricing'].includes(route.path) && !/^tracks\/\d+$/.test(route.path) && !/^users\/\d+$/.test(route.path)) { go('login'); return; }
@@ -245,6 +248,8 @@ function bindEvents() {
     document.querySelectorAll('[data-action="toggle-menu"]').forEach(btn => btn.addEventListener('click', () => document.querySelector('.sidebar')?.classList.toggle('is-open')));
     document.querySelectorAll('[data-action="refresh-captcha"]').forEach(btn => btn.addEventListener('click', async () => { try { await loadCaptcha(); render(); } catch (error) { notify(readError(error), 'error'); } }));
     document.querySelectorAll('[data-action="request-email-code"]').forEach(btn => btn.addEventListener('click', requestEmailCode));
+    document.querySelectorAll('[data-action="google-login"]').forEach(link => link.addEventListener('click', event => { const box = document.querySelector('[data-age-confirm]'); if (!box?.checked) { event.preventDefault(); box?.closest('.age-check')?.classList.add('is-error'); notify('Подтвердите, что вам исполнилось 16 лет', 'error'); } }));
+    document.querySelectorAll('[data-action="admin-preview"]').forEach(btn => btn.addEventListener('click', () => previewModerationTrack(btn)));
     document.querySelectorAll('[data-action="logout"]').forEach(btn => btn.addEventListener('click', async () => { try { await api('/logout'); } catch {} clearAuth(); go('login'); notify('Вы вышли из аккаунта', 'success'); }));
     document.querySelectorAll('[data-action="retry"]').forEach(btn => btn.addEventListener('click', render));
     document.querySelectorAll('[data-cycle]').forEach(btn => btn.addEventListener('click', () => { state.pricingCycle = btn.dataset.cycle; render(); }));
@@ -297,8 +302,9 @@ async function submitAuth(event) {
 
 async function requestEmailCode(event) {
     const form = event.currentTarget.closest('form');
-    const fields = ['name', 'email', 'captcha_answer'];
+    const fields = ['name', 'email', 'birth_date', 'captcha_answer'];
     if (!validate(form, fields)) return;
+    if (!isOldEnough(form.elements.birth_date.value)) { const node = form.querySelector('[data-error="birth_date"]'); if (node) node.textContent = 'Homeostat доступен только пользователям старше 16 лет.'; return; }
     try {
         await api('/auth/email/request-code', {
             method: 'POST', auth: false,
@@ -409,6 +415,28 @@ async function editGenre(id, currentName) { const name = window.prompt('Ново
 async function deleteGenre(id) { if (!window.confirm('Удалить жанр? Жанр с треками сервер отклонит.')) return; try { await api(`/genres/${id}`, { method: 'DELETE' }); state.genres = []; notify('Жанр удалён', 'success'); render(); } catch (error) { notify(readError(error), 'error'); } }
 async function blockUser(block) { const form = document.querySelector('#block-form'); const id = form?.elements.user_id?.value; if (!id) return; try { await api(`/admin/users/${id}/block`, { method: block ? 'PUT' : 'DELETE' }); notify(block ? 'Пользователь заблокирован' : 'Пользователь разблокирован', 'success'); } catch (error) { notify(readError(error), 'error'); } }
 async function deleteTrack(id) { if (!window.confirm('Удалить этот трек и связанные записи?')) return; try { await api(`/tracks/${id}`, { method: 'DELETE' }); notify('Трек удалён', 'success'); go('tracks'); } catch (error) { notify(readError(error), 'error'); } }
+const moderationPreviewUrls = new Map();
+async function previewModerationTrack(btn) {
+    const id = btn.dataset.id; const audio = document.querySelector(`[data-preview-audio="${id}"]`); if (!audio) return;
+    document.querySelectorAll('[data-preview-audio]').forEach(other => { if (other !== audio) other.pause(); });
+    try { player.pause?.(); } catch {}
+    if (audio.src && !audio.paused) { audio.pause(); btn.textContent = '▶ Прослушать'; return; }
+    if (!audio.src) {
+        btn.disabled = true; btn.textContent = 'Загрузка…';
+        try {
+            const response = await fetch(apiUrl(`/tracks/${id}/stream`), { headers: { Authorization: `Bearer ${state.token}`, Accept: 'audio/*' } });
+            if (!response.ok) throw new ApiError(response.status === 404 ? 'Аудиофайл трека не найден.' : `Ошибка сервера (${response.status}).`, response.status);
+            const url = URL.createObjectURL(await response.blob()); moderationPreviewUrls.set(id, url); audio.src = url;
+            audio.onended = () => { btn.textContent = '▶ Прослушать'; };
+            audio.onpause = () => { btn.textContent = '▶ Прослушать'; };
+            audio.onplay = () => { btn.textContent = '❚❚ Пауза'; };
+        } catch (error) { notify(readError(error), 'error'); btn.textContent = '▶ Прослушать'; return; }
+        finally { btn.disabled = false; }
+    }
+    audio.classList.remove('is-hidden');
+    try { await audio.play(); } catch { notify('Браузер не смог воспроизвести этот файл.', 'error'); }
+}
+
 async function moderateTrack(id, status) { const reason = status === 'rejected' ? window.prompt('Укажите причину отклонения:') : null; if (status === 'rejected' && !reason) return; try { await api(`/admin/tracks/${id}/status`, { method: 'PATCH', body: { status, ...(reason ? { reason } : {}) } }); notify(status === 'published' ? 'Трек опубликован' : 'Трек отклонён', 'success'); render(); } catch (error) { notify(readError(error), 'error'); } }
 
 window.addEventListener('hashchange', render);

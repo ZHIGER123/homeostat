@@ -18,7 +18,7 @@ class AuthApiTest extends TestCase
     {
         $challenge = $this->getJson('/api/v1/auth/captcha')->assertOk()->json();
         preg_match('/(\d+)\s*\+\s*(\d+)/u', $challenge['question'], $parts);
-        $response = $this->postJson('/api/v1/register', ['name' => 'Новый', 'email' => 'new@example.com', 'password' => 'password1', 'password_confirmation' => 'password1', 'captcha_id' => $challenge['id'], 'captcha_answer' => (string) ((int) $parts[1] + (int) $parts[2])]);
+        $response = $this->postJson('/api/v1/register', ['name' => 'Новый', 'email' => 'new@example.com', 'password' => 'password1', 'password_confirmation' => 'password1', 'birth_date' => now()->subYears(20)->toDateString(), 'captcha_id' => $challenge['id'], 'captcha_answer' => (string) ((int) $parts[1] + (int) $parts[2])]);
         $response->assertCreated()->assertJsonPath('user.role', 'listener')->assertJsonStructure(['user', 'token'])->assertJsonMissingPath('user.password');
         $this->assertDatabaseHas('users', ['email' => 'new@example.com', 'role' => 'listener']);
         $this->assertNotSame('password1', User::where('email', 'new@example.com')->firstOrFail()->password);
@@ -28,7 +28,7 @@ class AuthApiTest extends TestCase
     {
         $challenge = $this->getJson('/api/v1/auth/captcha')->assertOk()->json();
         preg_match('/(\d+)\s*\+\s*(\d+)/u', $challenge['question'], $parts);
-        $this->postJson('/api/v1/register', ['name' => 'Новый', 'email' => 'artist@example.com', 'password' => 'password1', 'password_confirmation' => 'password1', 'role' => 'artist', 'captcha_id' => $challenge['id'], 'captcha_answer' => (string) ((int) $parts[1] + (int) $parts[2])])->assertCreated()->assertJsonPath('user.role', 'listener');
+        $this->postJson('/api/v1/register', ['name' => 'Новый', 'email' => 'artist@example.com', 'password' => 'password1', 'password_confirmation' => 'password1', 'birth_date' => now()->subYears(20)->toDateString(), 'role' => 'artist', 'captcha_id' => $challenge['id'], 'captcha_answer' => (string) ((int) $parts[1] + (int) $parts[2])])->assertCreated()->assertJsonPath('user.role', 'listener');
     }
 
     public function test_email_code_distinguishes_new_and_existing_accounts(): void
@@ -113,5 +113,35 @@ class AuthApiTest extends TestCase
         $blocked = User::factory()->blocked()->create();
         Sanctum::actingAs($blocked);
         $this->getJson('/api/v1/me')->assertForbidden();
+    }
+
+    public function test_registration_rejects_users_younger_than_sixteen(): void
+    {
+        $challenge = $this->getJson('/api/v1/auth/captcha')->assertOk()->json();
+        preg_match('/(\d+)\s*\+\s*(\d+)/u', $challenge['question'], $parts);
+        $this->postJson('/api/v1/register', ['name' => 'Юный', 'email' => 'young@example.com', 'password' => 'password1', 'password_confirmation' => 'password1', 'birth_date' => now()->subYears(15)->toDateString(), 'captcha_id' => $challenge['id'], 'captcha_answer' => (string) ((int) $parts[1] + (int) $parts[2])])
+            ->assertStatus(422)->assertJsonValidationErrors(['birth_date']);
+        $this->postJson('/api/v1/auth/email/request-code', ['name' => 'Юный', 'email' => 'young@example.com', 'birth_date' => now()->subYears(15)->toDateString()])
+            ->assertStatus(422)->assertJsonValidationErrors(['birth_date']);
+        $this->assertDatabaseMissing('users', ['email' => 'young@example.com']);
+    }
+
+    public function test_only_google_oauth_is_available_and_requires_age_confirmation(): void
+    {
+        config(['services.oauth.google.client_id' => 'test-id', 'services.oauth.google.client_secret' => 'test-secret']);
+        $this->get('/api/v1/auth/apple/redirect?age_confirmed=1')->assertNotFound();
+        $this->get('/api/v1/auth/github/redirect?age_confirmed=1')->assertNotFound();
+        $this->assertStringContainsString('oauth_error=', $this->get('/api/v1/auth/google/redirect')->assertRedirect()->headers->get('Location'));
+        $this->assertStringStartsWith('https://accounts.google.com/', $this->get('/api/v1/auth/google/redirect?age_confirmed=1')->assertRedirect()->headers->get('Location'));
+    }
+
+    public function test_admin_can_stream_pending_track_for_moderation_but_guest_cannot(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+        $track = Track::factory()->pending()->create(['audio_path' => 'tracks/pending.mp3']);
+        \Illuminate\Support\Facades\Storage::disk('local')->put('tracks/pending.mp3', 'fake-audio');
+        $this->get('/api/v1/tracks/'.$track->id.'/stream')->assertNotFound();
+        Sanctum::actingAs(User::factory()->admin()->create());
+        $this->get('/api/v1/tracks/'.$track->id.'/stream')->assertOk();
     }
 }

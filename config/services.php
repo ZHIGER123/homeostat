@@ -15,7 +15,5 @@ return [
     ],
     'oauth' => [
         'google' => ['client_id' => env('GOOGLE_CLIENT_ID'), 'client_secret' => env('GOOGLE_CLIENT_SECRET'), 'redirect' => env('GOOGLE_REDIRECT_URI', env('APP_URL').'/api/v1/auth/google/callback'), 'authorize' => 'https://accounts.google.com/o/oauth2/v2/auth', 'token' => 'https://oauth2.googleapis.com/token', 'userinfo' => 'https://openidconnect.googleapis.com/v1/userinfo', 'scope' => 'openid email profile'],
-        'apple' => ['client_id' => env('APPLE_CLIENT_ID'), 'client_secret' => env('APPLE_CLIENT_SECRET'), 'redirect' => env('APPLE_REDIRECT_URI', env('APP_URL').'/api/v1/auth/apple/callback'), 'authorize' => 'https://appleid.apple.com/auth/authorize', 'token' => 'https://appleid.apple.com/auth/token', 'scope' => 'name email'],
-        'github' => ['client_id' => env('GITHUB_CLIENT_ID'), 'client_secret' => env('GITHUB_CLIENT_SECRET'), 'redirect' => env('GITHUB_REDIRECT_URI', env('APP_URL').'/api/v1/auth/github/callback'), 'authorize' => 'https://github.com/login/oauth/authorize', 'token' => 'https://github.com/login/oauth/access_token', 'userinfo' => 'https://api.github.com/user', 'emails' => 'https://api.github.com/user/emails', 'scope' => 'read:user user:email'],
     ],
 ];

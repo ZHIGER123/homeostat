@@ -3,6 +3,8 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use App\Models\User;
+use App\Rules\MinimumAge;
 use Illuminate\Validation\Rule;
 
 class RegisterRequest extends FormRequest
@@ -14,6 +16,7 @@ class RegisterRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'birth_date' => ['required', 'date_format:Y-m-d', new MinimumAge(User::MIN_AGE)],
             'role' => ['sometimes', Rule::in(['listener', 'artist'])],
             'captcha_id' => ['nullable', 'string', 'max:80'],
             'captcha_answer' => ['nullable', 'string', 'max:20'],
