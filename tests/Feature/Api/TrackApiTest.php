@@ -132,14 +132,15 @@ class TrackApiTest extends TestCase
             ->assertJsonStructure(['message', 'errors']);
     }
 
-    public function test_store_forbidden_for_listener_and_blocked_artist(): void
+    public function test_first_upload_promotes_listener_but_blocked_artist_is_forbidden(): void
     {
         $genre = Genre::factory()->create();
         $listener = User::factory()->listener()->create();
         $blocked = User::factory()->artist()->blocked()->create();
 
         Sanctum::actingAs($listener);
-        $this->postJson('/api/v1/tracks', $this->payload($listener, $genre))->assertForbidden();
+        $this->postJson('/api/v1/tracks', $this->payload($listener, $genre))->assertCreated()->assertJsonPath('data.status', 'pending')->assertJsonPath('data.artist.role', 'artist');
+        $this->assertSame('artist', $listener->fresh()->role->value);
         Sanctum::actingAs($blocked);
         $this->postJson('/api/v1/tracks', $this->payload($blocked, $genre))->assertForbidden();
     }

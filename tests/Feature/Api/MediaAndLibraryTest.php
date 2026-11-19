@@ -82,4 +82,27 @@ class MediaAndLibraryTest extends TestCase
         $this->getJson('/api/v1/me/liked-playlists')->assertOk()->assertJsonCount(0, 'data');
         $this->deleteJson('/api/v1/playlists/'.$playlist->id.'/like')->assertNoContent();
     }
+    public function test_artist_status_changes_only_after_successful_upload(): void
+    {
+        Storage::fake('local'); Storage::fake('public');
+        $user = User::factory()->listener()->create(); Sanctum::actingAs($user);
+        $genre = Genre::factory()->create();
+        $this->postJson('/api/v1/tracks', ['title' => 'Bad', 'genre_id' => $genre->id, 'audio' => UploadedFile::fake()->create('bad.mp3', 20, 'audio/mpeg')])->assertUnprocessable();
+        $this->assertSame('listener', $user->fresh()->role->value);
+        $this->postJson('/api/v1/tracks', ['title' => 'First', 'genre_id' => $genre->id, 'audio' => TestAudio::wav()])->assertCreated();
+        $this->assertSame('artist', $user->fresh()->role->value);
+    }
+    public function test_profile_social_links_are_validated_and_public(): void
+    {
+        $user = User::factory()->listener()->create(); Sanctum::actingAs($user);
+        $this->patchJson('/api/v1/me', ['bio' => 'Астана · рок', 'social_links' => ['youtube' => 'https://youtube.com/example', 'telegram' => 'https://t.me/example']])->assertOk();
+        $this->getJson('/api/v1/users/'.$user->id)->assertOk()->assertJsonPath('data.social_links.youtube', 'https://youtube.com/example');
+        $this->patchJson('/api/v1/me', ['social_links' => ['telegram' => 'javascript:alert(1)']])->assertUnprocessable();
+    }
+    public function test_follow_status_for_not_yet_followed_artist_is_not_404(): void
+    {
+        $listener = User::factory()->listener()->create(); $artist = User::factory()->artist()->create(); Sanctum::actingAs($listener);
+        $this->getJson('/api/v1/users/'.$listener->id.'/following/'.$artist->id)->assertOk()->assertJsonPath('following', false);
+    }
+
 }

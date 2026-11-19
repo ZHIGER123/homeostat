@@ -24,6 +24,23 @@ class AuthApiTest extends TestCase
         $this->assertNotSame('password1', User::where('email', 'new@example.com')->firstOrFail()->password);
     }
 
+    public function test_registration_cannot_select_artist_role(): void
+    {
+        $challenge = $this->getJson('/api/v1/auth/captcha')->assertOk()->json();
+        preg_match('/(\d+)\s*\+\s*(\d+)/u', $challenge['question'], $parts);
+        $this->postJson('/api/v1/register', ['name' => 'Новый', 'email' => 'artist@example.com', 'password' => 'password1', 'password_confirmation' => 'password1', 'role' => 'artist', 'captcha_id' => $challenge['id'], 'captcha_answer' => (string) ((int) $parts[1] + (int) $parts[2])])->assertCreated()->assertJsonPath('user.role', 'listener');
+    }
+
+    public function test_email_code_distinguishes_new_and_existing_accounts(): void
+    {
+        foreach (['new-otp@example.com', 'existing-otp@example.com'] as $email) {
+            \App\Models\EmailVerificationCode::create(['email' => $email, 'purpose' => 'registration', 'code_hash' => \Illuminate\Support\Facades\Hash::make('123456'), 'payload' => json_encode(['name' => 'OTP', 'role' => 'artist']), 'expires_at' => now()->addMinutes(10)]);
+        }
+        User::factory()->listener()->create(['email' => 'existing-otp@example.com']);
+        $this->postJson('/api/v1/auth/email/verify-code', ['email' => 'new-otp@example.com', 'code' => '123456'])->assertCreated()->assertJsonPath('new_account', true)->assertJsonPath('user.role', 'listener');
+        $this->postJson('/api/v1/auth/email/verify-code', ['email' => 'existing-otp@example.com', 'code' => '123456'])->assertCreated()->assertJsonPath('new_account', false);
+    }
+
     public function test_registration_rejects_admin_role_and_duplicate_email(): void
     {
         User::factory()->create(['email' => 'used@example.com']);
@@ -52,7 +69,7 @@ class AuthApiTest extends TestCase
         Sanctum::actingAs(User::factory()->listener()->create());
         $this->postJson('/api/v1/genres', ['name' => 'Rock'])->assertForbidden();
         $this->getJson('/api/v1/admin/tracks')->assertForbidden();
-        $this->postJson('/api/v1/tracks', [])->assertForbidden();
+        $this->postJson('/api/v1/tracks', [])->assertUnprocessable();
     }
 
     public function test_owners_and_admins_are_enforced_and_spoofed_user_id_is_ignored(): void
