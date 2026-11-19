@@ -88,7 +88,7 @@ class EmailRegistrationTest extends TestCase
     {
         Mail::fake();
         $user = User::factory()->listener()->create(['email' => 'verify@example.com']);
-        $original = $user->getRawOriginal();
+        $original = $user->fresh()->getRawOriginal();
         foreach (['/api/v1/register', '/api/v1/auth/register', '/api/v1/auth/email/request-code'] as $route) {
             $data = $this->data();
             $data['email'] = '  VERIFY@EXAMPLE.COM  ';
@@ -107,7 +107,7 @@ class EmailRegistrationTest extends TestCase
         foreach (['listener', 'admin'] as $role) {
             $user = User::factory()->create(['email' => $role.'@example.com', 'role' => $role,
                 'email_verified_at' => null, 'is_blocked' => $role === 'listener']);
-            $original = $user->getRawOriginal();
+            $original = $user->fresh()->getRawOriginal();
             EmailVerificationCode::create(['email' => $user->email, 'purpose' => 'registration',
                 'code_hash' => Hash::make('123456'), 'payload' => '{}',
                 'expires_at' => now()->addMinutes(10)]);

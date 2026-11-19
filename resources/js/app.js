@@ -75,7 +75,7 @@ function mediaUrl(path) {
 }
 
 class ApiError extends Error {
-    constructor(message, status, errors = {}) { super(message); this.status = status; this.errors = errors; }
+    constructor(message, status, errors = {}, retryAfter = 0) { super(message); this.status = status; this.errors = errors; this.retryAfter = retryAfter; }
 }
 
 async function api(path, options = {}) {
@@ -90,8 +90,13 @@ async function api(path, options = {}) {
     } catch { throw new ApiError('Сервер недоступен. Проверьте, запущен ли Laravel.', 0); }
     let payload = {};
     try { payload = await response.json(); } catch { payload = {}; }
-    if (response.status === 401) { clearAuth(); go('login'); throw new ApiError('Сессия истекла. Войдите снова.', 401, payload.errors || {}); }
-    if (!response.ok) throw new ApiError(payload.message || `Ошибка сервера (${response.status}).`, response.status, payload.errors || {});
+    if (response.status === 401 && auth) { clearAuth(); go('login'); throw new ApiError('Сессия истекла. Войдите снова.', 401, payload.errors || {}); }
+    if (!response.ok) {
+        const seconds = Number(response.headers.get('Retry-After') || payload.retry_after || 60);
+        const retryAfter = response.status === 429 ? Math.max(1, Math.min(3600, Number.isFinite(seconds) ? seconds : 60)) : 0;
+        const message = response.status === 429 ? `Слишком много запросов. Повторите через ${Math.ceil(retryAfter)} с.` : payload.message || `Ошибка сервера (${response.status}).`;
+        throw new ApiError(message, response.status, payload.errors || {}, retryAfter);
+    }
     return payload;
 }
 
@@ -262,7 +267,13 @@ function bindEvents() {
     document.querySelectorAll('[data-action="refresh-captcha"]').forEach(btn => btn.addEventListener('click', async () => { try { await refreshCaptchaInForm(btn.closest('form')); } catch (error) { notify(readError(error), 'error'); } }));
     document.querySelectorAll('[data-action="request-email-code"]').forEach(btn => btn.addEventListener('click', () => requestEmailCode(btn.closest('form'))));
     document.querySelectorAll('[data-action="admin-preview"]').forEach(btn => btn.addEventListener('click', () => previewModerationTrack(btn)));
-    document.querySelectorAll('[data-action="logout"]').forEach(btn => btn.addEventListener('click', async () => { try { await api('/logout'); } catch {} clearAuth(); go('login'); notify('Вы вышли из аккаунта', 'success'); }));
+    document.querySelectorAll('[data-action="logout"]').forEach(btn => btn.addEventListener('click', async () => {
+        if (btn.disabled) return;
+        btn.disabled = true;
+        try { await api('/logout', { method: 'POST' }); clearAuth(); go('login'); notify('Вы вышли из аккаунта', 'success'); }
+        catch (error) { notify(readError(error), 'error'); }
+        finally { if (btn.isConnected) btn.disabled = false; }
+    }));
     document.querySelectorAll('[data-action="retry"]').forEach(btn => btn.addEventListener('click', render));
     document.querySelectorAll('[data-cycle]').forEach(btn => btn.addEventListener('click', () => { state.pricingCycle = btn.dataset.cycle; render(); }));
     document.querySelectorAll('[data-action="choose-plan"]').forEach(btn => btn.addEventListener('click', () => choosePlan(btn.dataset.plan)));
@@ -301,15 +312,37 @@ function bindEvents() {
     const blockForm = document.querySelector('#block-form'); if (blockForm) blockForm.addEventListener('submit', (event) => { event.preventDefault(); blockUser(true); });
 }
 
+function updateLoginButton(form) {
+    window.clearTimeout(form.loginTimer);
+    if (!form.isConnected) return;
+    const remaining = Math.max(0, Math.ceil((Number(form.dataset.retryAt || 0) - Date.now()) / 1000));
+    const button = form.querySelector('[type="submit"]');
+    button.disabled = form.dataset.busy === 'true' || remaining > 0;
+    button.querySelector('span').textContent = remaining ? `Повторить через ${remaining} с` : form.dataset.busy === 'true' ? 'Входим…' : 'Войти в Homeostat';
+    if (remaining) form.loginTimer = window.setTimeout(() => updateLoginButton(form), 250);
+}
+
 async function submitAuth(event) {
     event.preventDefault();
     const form = event.currentTarget;
     if (form.dataset.mode === 'register') return submitEmailRegistration(event);
+    if (form.dataset.busy === 'true' || Date.now() < Number(form.dataset.retryAt || 0)) return;
     if (!validate(form, ['email', 'password'])) return;
+    form.querySelectorAll('[data-form-message], [data-error]').forEach(node => { node.textContent = ''; });
+    form.dataset.busy = 'true';
+    updateLoginButton(form);
     try {
-        const result = await api('/login', { method: 'POST', auth: false, body: Object.fromEntries(new FormData(form).entries()) });
+        const body = Object.fromEntries(new FormData(form).entries());
+        body.email = body.email.trim().toLowerCase();
+        const result = await api('/login', { method: 'POST', auth: false, body });
         setAuth(result); notify('Добро пожаловать', 'success'); go('tracks');
-    } catch (error) { applyErrors(form, error); }
+    } catch (error) {
+        if (error.status === 429) form.dataset.retryAt = String(Date.now() + (error.retryAfter || 60) * 1000);
+        applyErrors(form, error);
+    } finally {
+        form.dataset.busy = 'false';
+        updateLoginButton(form);
+    }
 }
 
 function clearRegistrationErrors(form) {

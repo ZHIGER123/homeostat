@@ -31,8 +31,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
     Route::get('auth/captcha', [CaptchaController::class, 'show'])->middleware('throttle:30,1')->name('auth.captcha');
     Route::post('auth/email/request-code', [AuthController::class, 'requestEmailCode'])->middleware('throttle:10,1')->name('auth.email.request-code');
     Route::post('auth/email/verify-code', [AuthController::class, 'verifyEmailCode'])->middleware('throttle:15,1')->name('auth.email.verify-code');
-    Route::post('login', [AuthController::class, 'login'])->middleware('throttle:5,1')->name('login');
-    Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:5,1')->name('auth.login');
+    Route::post('login', [AuthController::class, 'login'])->middleware('throttle:login')->name('login');
+    Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:login')->name('auth.login');
     Route::apiResource('tracks', TrackController::class)->only(['index', 'show']);
     Route::get('tracks/{track}/cover', [TrackController::class, 'cover'])->name('tracks.cover');
     Route::get('tracks/{track}/stream', [TrackController::class, 'stream'])->name('tracks.stream');
