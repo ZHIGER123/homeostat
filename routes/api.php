@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\Admin\TrackModerationController;
 use App\Http\Controllers\Api\Admin\UserBlockController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\ArtistFeatureController;
 use App\Http\Controllers\Api\BillingController;
 use App\Http\Controllers\Api\CaptchaController;
 use App\Http\Controllers\Api\CommentController;
@@ -43,6 +44,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
     Route::apiResource('genres', GenreController::class)->only(['index', 'show']);
     Route::get('users/{user}', [UserController::class, 'show'])->name('users.show');
     Route::get('users/{user}/avatar', [UserController::class, 'avatar'])->name('users.avatar');
+    Route::get('users/{user}/spotlight', [ArtistFeatureController::class, 'spotlightIndex'])->name('users.spotlight');
     Route::middleware(['auth:sanctum', 'not_blocked'])->group(function () {
         Route::post('logout', [AuthController::class, 'logout'])->name('logout');
         Route::get('me', [AuthController::class, 'me'])->name('me');
@@ -51,11 +53,15 @@ Route::prefix('v1')->name('v1.')->group(function () {
         Route::post('auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
         Route::get('billing/me', [BillingController::class, 'me'])->name('billing.me');
         Route::post('billing/checkout', [BillingController::class, 'checkout'])->name('billing.checkout');
+        Route::post('billing/sync', [BillingController::class, 'sync'])->name('billing.sync');
         Route::post('billing/portal', [BillingController::class, 'portal'])->name('billing.portal');
         Route::post('billing/cancel', [BillingController::class, 'cancel'])->name('billing.cancel');
         Route::post('billing/resume', [BillingController::class, 'resume'])->name('billing.resume');
         Route::get('me/tracks/stats', [TrackStatsController::class, 'index'])->name('me.tracks.stats');
         Route::apiResource('tracks', TrackController::class)->only(['store', 'update', 'destroy']);
+        Route::put('tracks/{track}/spotlight', [ArtistFeatureController::class, 'spotlight'])->name('tracks.spotlight');
+        Route::put('tracks/{track}/boost', [ArtistFeatureController::class, 'boost'])->name('tracks.boost');
+        Route::put('tracks/{track}/comments-settings', [ArtistFeatureController::class, 'comments'])->name('tracks.comments.settings');
         Route::post('tracks/{track}/comments', [TrackCommentController::class, 'store'])->name('tracks.comments.store');
         Route::delete('comments/{comment}', [CommentController::class, 'destroy'])->name('comments.destroy');
         Route::get('me/following', [LibraryController::class, 'following'])->name('me.following.index');

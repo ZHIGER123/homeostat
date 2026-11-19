@@ -19,6 +19,7 @@ class BillingService
     public function checkout(User $user, string $plan, string $cycle = 'monthly'): array
     {
         $this->assertPlan($plan, $cycle);
+        if ($user->subscription?->active() && $user->subscription?->provider_subscription_id) abort(409, 'У вас уже есть активная подписка. Для изменения откройте управление оплатой, чтобы избежать повторного списания.');
         $price = config("plans.{$plan}.price_id_{$cycle}");
         if (! config('services.stripe.secret') || ! $price) throw new ServiceUnavailableHttpException(null, 'Платёжный провайдер ещё не настроен.');
 
@@ -64,31 +65,96 @@ class BillingService
     {
         $this->verifySignature($payload, $signature);
         $event = json_decode($payload, true, 512, JSON_THROW_ON_ERROR);
-        if (! Cache::add('stripe:event:'.$event['id'], true, now()->addDay())) return;
+        if (Cache::has('stripe:event:'.$event['id'])) return;
         $object = $event['data']['object'] ?? [];
         match ($event['type']) {
             'checkout.session.completed' => $this->syncCheckout($object),
             'customer.subscription.updated', 'customer.subscription.deleted' => $this->syncSubscription($object),
             default => null,
         };
+        Cache::put('stripe:event:'.$event['id'], true, now()->addDay());
     }
 
-    private function syncCheckout(array $session): void
+    /** Verify with Stripe, never trust a browser redirect as proof of payment. */
+    public function syncForUser(User $user, ?string $sessionId = null): void
     {
-        $user = User::find($session['metadata']['user_id'] ?? null);
-        if (! $user || empty($session['subscription'])) return;
-        $this->upsert($user, ['provider_customer_id' => $session['customer'] ?? null, 'provider_subscription_id' => $session['subscription'], 'plan' => $session['metadata']['plan'] ?? 'artist', 'status' => 'active']);
+        $secret = config('services.stripe.secret');
+        if (! $secret) throw new ServiceUnavailableHttpException(null, 'Stripe не настроен.');
+        if ($sessionId) {
+            $session = Http::timeout(15)->withBasicAuth($secret, '')->get('https://api.stripe.com/v1/checkout/sessions/'.rawurlencode($sessionId))->throw()->json();
+            $this->syncCheckout($session, $user);
+            return;
+        }
+        // Recovery for earlier successful payments when the webhook was not delivered.
+        // Read at most 300 recent sessions, and use only records belonging to this user.
+        $startingAfter = null;
+        for ($page = 0; $page < 3; $page++) {
+            $query = ['limit' => 100]; if ($startingAfter) $query['starting_after'] = $startingAfter;
+            $result = Http::timeout(15)->withBasicAuth($secret, '')->get('https://api.stripe.com/v1/checkout/sessions', $query)->throw()->json();
+            foreach ($result['data'] ?? [] as $session) {
+                if ((string) ($session['metadata']['user_id'] ?? '') !== (string) $user->id || ($session['mode'] ?? '') !== 'subscription' || ($session['status'] ?? '') !== 'complete' || ! in_array($session['payment_status'] ?? '', ['paid', 'no_payment_required'], true)) continue;
+                $subscription = $this->fetchSubscription($session['subscription'] ?? '');
+                if (! in_array($subscription['status'] ?? '', ['active', 'trialing'], true)) continue;
+                $this->applySubscription($subscription, $user, $session);
+                return;
+            }
+            if (empty($result['has_more']) || empty($result['data'])) break;
+            $startingAfter = end($result['data'])['id'];
+        }
+        abort(404, 'Активная оплата не найдена среди последних сессий Stripe. Проверьте тестовый аккаунт Stripe и webhook.');
     }
 
-    private function syncSubscription(array $subscription): void
+    private function fetchSubscription(mixed $id): array
     {
+        if (! is_string($id) || ! preg_match('/^sub_[a-zA-Z0-9]+$/', $id)) abort(422, 'Stripe не вернул действительную подписку.');
+        $secret = config('services.stripe.secret');
+        if (! $secret) throw new ServiceUnavailableHttpException(null, 'Stripe не настроен.');
+        return Http::timeout(15)->withBasicAuth($secret, '')->get('https://api.stripe.com/v1/subscriptions/'.rawurlencode($id))->throw()->json();
+    }
+
+    private function applySubscription(array $subscription, User $user, ?array $session = null): void
+    {
+        $id = $subscription['id'] ?? '';
+        $customer = $subscription['customer'] ?? '';
+        abort_unless(is_string($id) && preg_match('/^sub_[a-zA-Z0-9]+$/', $id), 422, 'Некорректная подписка Stripe.');
+        abort_unless((string) ($subscription['metadata']['user_id'] ?? '') === (string) $user->id, 403, 'Подписка принадлежит другому пользователю.');
+        if ($session !== null) {
+            abort_unless((string) ($session['metadata']['user_id'] ?? '') === (string) $user->id && ($session['subscription'] ?? null) === $id && ($session['customer'] ?? null) === $customer, 403, 'Сессия оплаты не принадлежит этому аккаунту.');
+        }
+        $price = $subscription['items']['data'][0]['price']['id'] ?? null; $plan = null;
+        foreach (['artist', 'artist_pro'] as $candidate) foreach (['monthly', 'annual'] as $cycle) {
+            $configured = config("plans.{$candidate}.price_id_{$cycle}");
+            if ($configured && $price === $configured) $plan = $candidate;
+        }
+        abort_unless($plan !== null, 422, 'Цена подписки не совпадает с настроенными Price ID. Проверьте .env.');
+        $existing = $user->subscription()->first();
+        if ($existing && $existing->active() && $existing->provider_subscription_id && $existing->provider_subscription_id !== $id) abort(409, 'Найдены две разные подписки. Проверьте их в Stripe и не оформляйте оплату повторно.');
+        $item = $subscription['items']['data'][0] ?? [];
+        $start = $subscription['current_period_start'] ?? ($item['current_period_start'] ?? null);
+        $end = $subscription['current_period_end'] ?? ($item['current_period_end'] ?? null);
+        $user->subscription()->updateOrCreate([], ['provider' => 'stripe', 'provider_customer_id' => $customer, 'provider_subscription_id' => $id, 'plan' => $plan, 'status' => $subscription['status'] ?? 'incomplete', 'current_period_start' => $start ? now()->setTimestamp($start) : null, 'current_period_end' => $end ? now()->setTimestamp($end) : null, 'cancel_at_period_end' => (bool) ($subscription['cancel_at_period_end'] ?? false)]);
+        $user->unsetRelation('subscription');
+    }
+
+    private function syncCheckout(array $session, ?User $expectedUser = null): void
+    {
+        $user = $expectedUser ?: User::find($session['metadata']['user_id'] ?? null);
+        abort_unless($user && (string) ($session['metadata']['user_id'] ?? '') === (string) $user->id, 403, 'Сессия оплаты не принадлежит этому аккаунту.');
+        abort_unless(($session['mode'] ?? '') === 'subscription' && ($session['status'] ?? '') === 'complete' && in_array($session['payment_status'] ?? '', ['paid', 'no_payment_required'], true), 409, 'Stripe ещё не подтвердил оплату.');
+        $subscription = $this->fetchSubscription($session['subscription'] ?? '');
+        abort_unless(in_array($subscription['status'] ?? '', ['active', 'trialing'], true), 409, 'Подписка ещё не активна в Stripe.');
+        $this->applySubscription($subscription, $user, $session);
+    }
+
+    private function syncSubscription(array $eventSubscription): void
+    {
+        // Retrieve current state to avoid stale or out-of-order events restoring access.
+        $subscription = $this->fetchSubscription($eventSubscription['id'] ?? '');
         $local = Subscription::where('provider_subscription_id', $subscription['id'] ?? null)->first();
         $user = $local?->user ?: User::find($subscription['metadata']['user_id'] ?? null);
         if (! $user) return;
-        $this->upsert($user, ['provider_customer_id' => $subscription['customer'] ?? null, 'provider_subscription_id' => $subscription['id'] ?? null, 'plan' => $subscription['metadata']['plan'] ?? ($local->plan ?? 'artist'), 'status' => $subscription['status'] ?? 'active', 'current_period_start' => isset($subscription['current_period_start']) ? now()->setTimestamp($subscription['current_period_start']) : null, 'current_period_end' => isset($subscription['current_period_end']) ? now()->setTimestamp($subscription['current_period_end']) : null, 'cancel_at_period_end' => (bool) ($subscription['cancel_at_period_end'] ?? false)]);
+        $this->applySubscription($subscription, $user);
     }
-
-    private function upsert(User $user, array $data): Subscription { return $user->subscription()->updateOrCreate([], ['provider' => 'stripe', ...$data]); }
     private function assertPlan(string $plan, string $cycle): void { $plans = config('plans', []); abort_unless(array_key_exists($plan, $plans) && $plan !== 'free' && in_array($cycle, ['monthly', 'annual'], true), 422, 'Недопустимый тариф.'); }
     private function verifySignature(string $payload, string $signature): void { $secret = config('services.stripe.webhook_secret'); abort_unless($secret && $signature, 400, 'Webhook signature отсутствует.'); $timestamp = null; $signatures = []; foreach (explode(',', $signature) as $part) { [$key, $value] = array_pad(explode('=', $part, 2), 2, null); if ($key === 't') $timestamp = $value; if ($key === 'v1') $signatures[] = $value; } abort_unless($timestamp && abs(time() - (int) $timestamp) <= 300, 400, 'Webhook signature устарела.'); $expected = hash_hmac('sha256', $timestamp.'.'.$payload, $secret); abort_unless(collect($signatures)->contains(fn ($value) => hash_equals($expected, $value)), 400, 'Webhook signature неверна.'); }
     private function frontendUrl(): string { return rtrim((string) env('CLIENT_URL', config('app.url')), '/'); }

@@ -7,6 +7,7 @@ use App\Models\Comment;
 use App\Models\Track;
 use App\Models\User;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
@@ -32,9 +33,12 @@ class CommentService
             throw new ConflictHttpException('Комментировать можно только опубликованные треки.');
         }
 
-        return $track->comments()
-            ->create(['user_id' => $author->id, 'body' => $data['body']])
-            ->load('author');
+        return DB::transaction(function () use ($track, $author, $data) {
+            $locked = Track::whereKey($track->id)->lockForUpdate()->firstOrFail();
+            if (! $locked->comments_enabled) throw new ConflictHttpException('Автор отключил комментарии к этому треку.');
+            if ($locked->status !== TrackStatus::Published) throw new ConflictHttpException('Комментировать можно только опубликованные треки.');
+            return $locked->comments()->create(['user_id' => $author->id, 'body' => $data['body']])->load('author');
+        });
     }
 
     public function delete(Comment $comment): void

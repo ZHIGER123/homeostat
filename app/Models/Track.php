@@ -37,6 +37,7 @@ class Track extends Model
         return [
             'duration' => 'integer',
             'plays_count' => 'integer',
+            'is_spotlight' => 'boolean', 'is_boosted' => 'boolean', 'comments_enabled' => 'boolean',
             'status' => TrackStatus::class,
         ];
     }

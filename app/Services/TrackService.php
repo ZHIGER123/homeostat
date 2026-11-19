@@ -29,6 +29,7 @@ class TrackService
             ->when($filters['q'] ?? null, function ($query, string $term) { $query->where(fn ($query) => $query->where('title', 'like', "%{$term}%")->orWhereHas('artist', fn ($artist) => $artist->where('name', 'like', "%{$term}%"))); })
             ->when($filters['genre_id'] ?? null, fn ($query, $genreId) => $query->where('genre_id', $genreId))
             ->when(isset($filters['min_plays']), fn ($query) => $query->where('plays_count', '>=', $filters['min_plays']))
+            ->when($sort === 'created_at' && $direction === 'desc', fn ($query) => $query->orderByRaw("CASE WHEN tracks.is_boosted = ? AND EXISTS (SELECT 1 FROM subscriptions WHERE subscriptions.user_id = tracks.user_id AND subscriptions.status IN (?, ?) AND subscriptions.plan IN (?, ?) AND (subscriptions.current_period_end IS NULL OR subscriptions.current_period_end > ?)) THEN 1 ELSE 0 END DESC", [true, 'active', 'trialing', 'artist', 'artist_pro', now()]))
             ->orderBy($sort, $direction)->orderByDesc('id')->paginate($filters['per_page'] ?? 20)->withQueryString();
     }
 

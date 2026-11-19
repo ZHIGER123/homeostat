@@ -22,6 +22,7 @@ class TrackResource extends JsonResource
             'cover_path' => $this->cover_path,
             'duration' => $this->duration,
             'plays_count' => $this->plays_count,
+            'is_spotlight' => $this->is_spotlight, 'is_boosted' => $this->is_boosted, 'comments_enabled' => $this->comments_enabled,
             'status' => $this->status,
             'reject_reason' => $this->reject_reason,
             'created_at' => $this->created_at,
