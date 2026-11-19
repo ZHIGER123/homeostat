@@ -1,6 +1,6 @@
 import { createLibraryViews } from './library.js';
 import { createPlayer } from './player.js';
-import { pricingView, billingView, choosePlan, billingAction, handleBillingQuery } from './billing.js';
+import { pricingView, billingView, choosePlan, billingAction, handleBillingQuery, syncBilling } from './billing.js';
 const API_BASE = (import.meta.env.VITE_API_URL || '/api/v1').replace(/\/$/, '');
 const TOKEN_KEY = 'homeostat_token';
 const USER_KEY = 'homeostat_user';
@@ -36,6 +36,7 @@ function readUser() {
 function dataOf(payload) { return payload?.data ?? payload; }
 function itemsOf(payload) { return Array.isArray(payload?.data) ? payload.data : []; }
 function escapeHtml(value = '') { return String(value).replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;' }[char])); }
+function proBadge(user) { return user?.plan === 'artist_pro' ? '<span class="pro-badge">PRO</span>' : ''; }
 function roleName(role) { return ({ admin: 'Администратор', artist: 'Исполнитель', listener: 'Слушатель' })[role] || role || 'Гость'; }
 function planName(plan) { return ({ free: 'Free', artist: 'Artist', artist_pro: 'Artist Pro' })[plan] || plan || 'Free'; }
 function money(cents) { return cents ? `€${(Number(cents) / 100).toFixed(2)}` : 'Бесплатно'; }
@@ -117,7 +118,7 @@ function shell(content, title = 'Обзор') {
             </nav>
             <div class="sidebar-bottom"><div class="mini-note"><span class="live-dot"></span><span>API online mode</span></div><button class="nav-link nav-button" data-action="logout"><span>↪</span> Выйти</button></div>
         </aside>
-        <div class="main-column"><header class="topbar"><button class="mobile-menu" data-action="toggle-menu" aria-label="Открыть меню">☰</button><div class="breadcrumbs"><span>Homeostat</span><b>/</b><strong>${escapeHtml(title)}</strong></div><div class="top-actions"><a class="user-chip" href="#profile" title="Открыть профиль">${avatarMarkup(user, 'avatar')}<span class="user-chip-copy"><b>${escapeHtml(user?.name || 'Гость')}</b><small>${escapeHtml(roleName(user?.role))}</small></span></a></div></header><main class="content" id="screen">${content}</main></div>
+        <div class="main-column"><header class="topbar"><button class="mobile-menu" data-action="toggle-menu" aria-label="Открыть меню">☰</button><div class="breadcrumbs"><span>Homeostat</span><b>/</b><strong>${escapeHtml(title)}</strong></div><div class="top-actions"><a class="user-chip" href="#profile" title="Открыть профиль">${avatarMarkup(user, 'avatar')}<span class="user-chip-copy"><b>${escapeHtml(user?.name || 'Гость')} ${proBadge(user)}</b><small>${escapeHtml(roleName(user?.role))}</small></span></a></div></header><main class="content" id="screen">${content}</main></div>
     </div><div id="player-slot"></div><div id="toast" class="toast" role="status"></div>`;
 }
 
@@ -193,7 +194,7 @@ async function render() {
     try {
         if (route.path === 'tracks') { await ensureGenres(); await loadTracks(route.params); content = tracksView(); }
         else if (route.path === 'welcome') { requireAuth(); content = `<div class="page-intro"><span class="eyebrow">WELCOME TO HOMEOSTAT</span><h1>Твоя музыка начинается здесь</h1><p>Выбирайте бесплатный план или сравните платные тарифы. Платная подписка необязательна.</p></div><div class="form-panel"><h2>Станьте исполнителем</h2><p>Оформите профиль и загрузите первый трек — аккаунт исполнителя появится автоматически. Трек поступит на проверку перед публикацией.</p><div class="action-row"><a class="button button-primary" href="#upload">Загрузить трек</a><a class="button button-light" href="#profile">Оформить профиль</a><a class="button button-light" href="#pricing">Посмотреть тарифы</a><a class="button button-light" href="#tracks">Продолжить бесплатно</a></div></div>`; title = 'Добро пожаловать'; }
-        else if (/^users\/\d+$/.test(route.path)) { const user = dataOf(await api(`/users/${route.path.split('/')[1]}`, {auth:false})); const links = Object.entries(user.social_links || {}).filter(([,url]) => typeof url === 'string' && /^https?:\/\//i.test(url)).map(([name,url]) => `<a class="button button-light" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(({website:'Сайт',youtube:'YouTube',telegram:'Telegram'})[name] || name)} ↗</a>`).join(''); content = `<div class="profile-hero">${avatarMarkup(user)}<div><span class="eyebrow">ARTIST PROFILE</span><h1>${escapeHtml(user.name)}</h1><p>${escapeHtml(roleName(user.role))}</p></div></div><section class="form-panel"><h2>О себе</h2><p>${escapeHtml(user.bio || 'Пользователь пока не заполнил описание.')}</p><div class="action-row">${links}</div></section>`; title = 'Профиль'; }
+        else if (/^users\/\d+$/.test(route.path)) { const user = dataOf(await api(`/users/${route.path.split('/')[1]}`, {auth:false})); const spotlight = itemsOf(await api(`/users/${user.id}/spotlight`, {auth:false})); const links = Object.entries(user.social_links || {}).filter(([,url]) => typeof url === 'string' && /^https?:\/\//i.test(url)).map(([name,url]) => `<a class="button button-light" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(({website:'Сайт',youtube:'YouTube',telegram:'Telegram'})[name] || name)} ↗</a>`).join(''); content = `<div class="profile-hero">${avatarMarkup(user)}<div><span class="eyebrow">ARTIST PROFILE</span><h1>${escapeHtml(user.name)} ${proBadge(user)}</h1><p>${escapeHtml(roleName(user.role))}</p></div></div><section class="form-panel"><h2>О себе</h2><p>${escapeHtml(user.bio || 'Пользователь пока не заполнил описание.')}</p><div class="action-row">${links}</div></section><section class="library-section"><h2>Закреплённые треки</h2><div class="cards-grid">${spotlight.length ? spotlight.map(trackCard).join('') : '<p class="muted-copy">Пока нет закреплённых треков.</p>'}</div></section>`; title = 'Профиль'; }
         else if (route.path.startsWith('tracks/')) { const id = route.path.split('/')[1]; // Send the optional bearer token so the API can authorize the owner/admin
             // to view a pending track immediately after upload. Guests still get
             // the same server-side 404 for unpublished tracks.
@@ -209,9 +210,9 @@ async function render() {
         else if (route.path.startsWith('edit/')) { requireAuth(); await ensureGenres(); const result = await api(`/tracks/${route.path.split('/')[1]}`); content = uploadView(dataOf(result)); title = 'Редактировать'; }
         else if (route.path === 'admin') { requireRole('admin'); await ensureGenres(); const result = await api('/admin/tracks?status=pending'); content = adminView(itemsOf(result)); title = 'Администрирование'; }
         else if (route.path === 'stats') { requireAuth(); const filters = { from: route.params.get('from') || '', to: route.params.get('to') || '' }; const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value)); const result = await api(`/me/tracks/stats${query.toString() ? `?${query}` : ''}`); content = statsView(dataOf(result), filters); title = 'Статистика'; }
-        else if (route.path === 'pricing') { if (!state.plans.length) state.plans = itemsOf(await api('/billing/plans', { auth: false })); content = pricingView(state.plans); title = 'Тарифы'; }
+        else if (route.path === 'pricing') { if (!state.plans.length) state.plans = itemsOf(await api('/billing/plans', { auth: false })); if (state.token) state.billing = dataOf(await api('/billing/me')); content = pricingView(state.plans); title = 'Тарифы'; }
         else if (route.path === 'billing') { requireAuth(); const result = await api('/billing/me'); state.billing = dataOf(result); content = billingView(state.billing); title = 'Подписка'; }
-        else if (route.path === 'profile') { requireAuth(); const result = await api('/me'); state.user = dataOf(result); localStorage.setItem(USER_KEY, JSON.stringify(state.user)); const page = key => Math.max(1, Number.parseInt(route.params.get(key), 10) || 1); const [likes, following, lists] = await Promise.all([api(`/users/${state.user.id}/likes?page=${page('tracks_page')}`), api(`/me/following?page=${page('artists_page')}`), api(`/me/liked-playlists?page=${page('playlists_page')}`)]); content = profileView(likes, following, lists, route.params); title = 'Профиль'; }
+        else if (route.path === 'profile') { requireAuth(); const result = await api('/me'); state.user = dataOf(result); localStorage.setItem(USER_KEY, JSON.stringify(state.user)); const page = key => Math.max(1, Number.parseInt(route.params.get(key), 10) || 1); const [likes, following, lists, spotlight] = await Promise.all([api(`/users/${state.user.id}/likes?page=${page('tracks_page')}`), api(`/me/following?page=${page('artists_page')}`), api(`/me/liked-playlists?page=${page('playlists_page')}`), api(`/users/${state.user.id}/spotlight`, {auth:false})]); content = profileView(likes, following, lists, route.params, itemsOf(spotlight)); title = 'Профиль'; }
         else { go(state.token ? 'tracks' : 'login'); return; }
         if (version !== renderVersion) return;
         root.innerHTML = shell(content, title); bindEvents();
@@ -248,10 +249,12 @@ function bindEvents() {
     document.querySelectorAll('[data-action="retry"]').forEach(btn => btn.addEventListener('click', render));
     document.querySelectorAll('[data-cycle]').forEach(btn => btn.addEventListener('click', () => { state.pricingCycle = btn.dataset.cycle; render(); }));
     document.querySelectorAll('[data-action="choose-plan"]').forEach(btn => btn.addEventListener('click', () => choosePlan(btn.dataset.plan)));
+    document.querySelectorAll('[data-action="billing-sync"]').forEach(btn => btn.addEventListener('click', syncBilling));
     document.querySelectorAll('[data-action="billing-portal"]').forEach(btn => btn.addEventListener('click', () => billingAction('portal')));
     document.querySelectorAll('[data-action="billing-cancel"]').forEach(btn => btn.addEventListener('click', () => billingAction('cancel')));
     document.querySelectorAll('[data-action="billing-resume"]').forEach(btn => btn.addEventListener('click', () => billingAction('resume')));
     document.querySelectorAll('[data-action="page"]').forEach(btn => btn.addEventListener('click', () => { if (!btn.disabled) go(`tracks?page=${Number(btn.dataset.page)}`); }));
+    document.querySelectorAll('[data-action="artist-feature"]').forEach(btn => btn.addEventListener('click', async () => { btn.disabled = true; try { await api(`/tracks/${btn.dataset.id}/${btn.dataset.kind}`, {method:'PUT', body:{enabled:btn.dataset.enabled === 'true'}}); notify('Настройки трека сохранены', 'success'); await render(); } catch (error) { btn.disabled = false; notify(readError(error), 'error'); } }));
     document.querySelectorAll('[data-action="play"]').forEach(btn => btn.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); player.play(btn.dataset.id).catch(() => notify('Не удалось воспроизвести трек.', 'error')); }));
     document.querySelectorAll('[data-action="like"]').forEach(btn => btn.addEventListener('click', () => toggleLike(btn)));
     document.querySelectorAll('[data-action="follow"]').forEach(btn => btn.addEventListener('click', () => toggleFollow(btn)));
@@ -409,4 +412,4 @@ async function deleteTrack(id) { if (!window.confirm('Удалить этот т
 async function moderateTrack(id, status) { const reason = status === 'rejected' ? window.prompt('Укажите причину отклонения:') : null; if (status === 'rejected' && !reason) return; try { await api(`/admin/tracks/${id}/status`, { method: 'PATCH', body: { status, ...(reason ? { reason } : {}) } }); notify(status === 'published' ? 'Трек опубликован' : 'Трек отклонён', 'success'); render(); } catch (error) { notify(readError(error), 'error'); } }
 
 window.addEventListener('hashchange', render);
-(async function boot() { if (await completeOAuth()) return; handleBillingQuery(); render(); })();
+(async function boot() { if (await completeOAuth()) return; await handleBillingQuery(); render(); })();
