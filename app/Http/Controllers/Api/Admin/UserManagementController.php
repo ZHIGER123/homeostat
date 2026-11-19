@@ -20,13 +20,18 @@ class UserManagementController extends Controller
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
         ]);
         $query = User::query()->withCount(['tracks', 'playlists', 'followers']);
-        if (($data['q'] ?? '') !== '') {
-            $term = trim($data['q']);
-            $query->where(function ($q) use ($term) {
-                $q->where('name', 'like', '%'.$term.'%')->orWhere('email', 'like', '%'.$term.'%');
-                if (ctype_digit($term)) $q->orWhere('id', $term);
-            });
-        }
+        $term = trim((string) ($data['q'] ?? ''));
+
+if ($term !== '') {
+    if (ctype_digit($term)) {
+        $query->where('id', $term);
+    } else {
+        $query->where(function ($q) use ($term) {
+            $q->where('name', 'like', '%'.$term.'%')
+                ->orWhere('email', 'like', '%'.$term.'%');
+        });
+    }
+}
         if (! empty($data['role'])) $query->where('role', $data['role']);
         if (isset($data['blocked']) && $data['blocked'] !== '') $query->where('is_blocked', $data['blocked'] === '1');
         return AdminUserResource::collection($query->orderByDesc('id')->paginate($data['per_page'] ?? 20)->withQueryString());
