@@ -211,3 +211,6 @@ body:has(.global-player) .content { padding-bottom: 130px; }
 .player-volume input { width: 90px; }
 @media (max-width: 650px) { .global-player { grid-template-columns: minmax(110px,1fr) minmax(150px,2fr); gap: 8px; padding: 8px 12px; } .player-volume { display:none; } .player-disc { flex-basis: 38px; height: 38px; } }
 @media (prefers-reduced-motion: reduce) { .is-playing .player-disc { animation: none; } }
+
+.pro-badge{display:inline-block;vertical-align:middle;margin-left:.35rem;padding:.12rem .4rem;border-radius:.35rem;background:#c8f36a;color:#10130d;font-size:.65rem;font-weight:800;letter-spacing:.05em}
+.creator-features{margin:1.5rem 0}
