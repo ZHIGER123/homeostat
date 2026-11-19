@@ -29,7 +29,7 @@ class TrackVisibilityApiTest extends TestCase
         $genre = Genre::factory()->create();
         Sanctum::actingAs($owner);
 
-        $response = $this->postJson('/api/v1/tracks', [
+        $response = $this->post('/api/v1/tracks', [
             'title' => 'Uploaded from the studio',
             'genre_id' => $genre->id,
             'duration' => 120,
