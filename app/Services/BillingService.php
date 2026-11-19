@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
@@ -46,19 +47,39 @@ class BillingService
     public function cancel(User $user): ?Subscription
     {
         $subscription = $user->subscription;
-        if (! $subscription?->provider_subscription_id) return $subscription;
-        Http::asForm()->withBasicAuth(config('services.stripe.secret'), '')->post('https://api.stripe.com/v1/subscriptions/'.$subscription->provider_subscription_id, ['cancel_at_period_end' => 'true'])->throw();
-        $subscription->update(['cancel_at_period_end' => true]);
-        return $subscription->refresh();
+        if (! $subscription?->provider_subscription_id || ! $subscription->active()) return $subscription;
+        if (! config('services.stripe.secret')) throw new ServiceUnavailableHttpException(null, 'Stripe не настроен.');
+        // Do not change local access until Stripe confirms immediate cancellation.
+        $result = Http::timeout(15)->withBasicAuth(config('services.stripe.secret'), '')->delete('https://api.stripe.com/v1/subscriptions/'.rawurlencode($subscription->provider_subscription_id))->throw()->json();
+        abort_unless(($result['id'] ?? null) === $subscription->provider_subscription_id && ($result['status'] ?? null) === 'canceled', 502, 'Stripe не подтвердил отмену. Проверьте подписку в разделе оплаты.');
+        $cancelled = DB::transaction(function () use ($user, $subscription) {
+            $owner = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $current = $owner->subscription()->whereKey($subscription->id)->lockForUpdate()->firstOrFail();
+            abort_unless($current->provider_subscription_id === $subscription->provider_subscription_id, 409, 'Подписка изменилась. Обновите страницу.');
+            $current->update(['status' => 'canceled', 'cancel_at_period_end' => false]);
+            $this->restoreFreeFeatures($owner);
+            return $current->refresh();
+        });
+        $user->unsetRelation('subscription');
+        return $cancelled;
     }
 
     public function resume(User $user): ?Subscription
     {
         $subscription = $user->subscription;
-        if (! $subscription?->provider_subscription_id) return $subscription;
+        if (! $subscription?->provider_subscription_id || ! $subscription->active()) abort(409, 'Отменённую подписку нельзя возобновить. Выберите тариф заново.');
+        if (! config('services.stripe.secret')) throw new ServiceUnavailableHttpException(null, 'Stripe не настроен.');
         Http::asForm()->withBasicAuth(config('services.stripe.secret'), '')->post('https://api.stripe.com/v1/subscriptions/'.$subscription->provider_subscription_id, ['cancel_at_period_end' => 'false'])->throw();
         $subscription->update(['cancel_at_period_end' => false]);
         return $subscription->refresh();
+    }
+
+    private function restoreFreeFeatures(User $user): void
+    {
+        // Never delete the user's music, likes or comments on downgrade.
+        $user->tracks()->update(['is_boosted' => false, 'comments_enabled' => true]);
+        $keep = $user->tracks()->published()->where('is_spotlight', true)->orderByDesc('created_at')->orderByDesc('id')->value('id');
+        $user->tracks()->where('is_spotlight', true)->when($keep, fn ($q) => $q->where('id', '!=', $keep))->update(['is_spotlight' => false]);
     }
 
     public function webhook(string $payload, string $signature): void
@@ -85,6 +106,13 @@ class BillingService
             $this->syncCheckout($session, $user);
             return;
         }
+        // First reconcile the known subscription, including cancellation when its webhook was missed.
+        $local = $user->subscription()->first(); $checked = false;
+        if ($local?->provider_subscription_id) {
+            $current = $this->fetchSubscription($local->provider_subscription_id);
+            $this->applySubscription($current, $user); $checked = true;
+            if (in_array($current['status'] ?? '', ['active', 'trialing'], true)) return;
+        }
         // Recovery for earlier successful payments when the webhook was not delivered.
         // Read at most 300 recent sessions, and use only records belonging to this user.
         $startingAfter = null;
@@ -101,6 +129,7 @@ class BillingService
             if (empty($result['has_more']) || empty($result['data'])) break;
             $startingAfter = end($result['data'])['id'];
         }
+        if ($checked) return;
         abort(404, 'Активная оплата не найдена среди последних сессий Stripe. Проверьте тестовый аккаунт Stripe и webhook.');
     }
 
@@ -127,12 +156,16 @@ class BillingService
             if ($configured && $price === $configured) $plan = $candidate;
         }
         abort_unless($plan !== null, 422, 'Цена подписки не совпадает с настроенными Price ID. Проверьте .env.');
-        $existing = $user->subscription()->first();
-        if ($existing && $existing->active() && $existing->provider_subscription_id && $existing->provider_subscription_id !== $id) abort(409, 'Найдены две разные подписки. Проверьте их в Stripe и не оформляйте оплату повторно.');
         $item = $subscription['items']['data'][0] ?? [];
         $start = $subscription['current_period_start'] ?? ($item['current_period_start'] ?? null);
         $end = $subscription['current_period_end'] ?? ($item['current_period_end'] ?? null);
-        $user->subscription()->updateOrCreate([], ['provider' => 'stripe', 'provider_customer_id' => $customer, 'provider_subscription_id' => $id, 'plan' => $plan, 'status' => $subscription['status'] ?? 'incomplete', 'current_period_start' => $start ? now()->setTimestamp($start) : null, 'current_period_end' => $end ? now()->setTimestamp($end) : null, 'cancel_at_period_end' => (bool) ($subscription['cancel_at_period_end'] ?? false)]);
+        DB::transaction(function () use ($user, $id, $customer, $subscription, $plan, $start, $end) {
+            $owner = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $existing = $owner->subscription()->lockForUpdate()->first();
+            if ($existing && $existing->active() && $existing->provider_subscription_id && $existing->provider_subscription_id !== $id) abort(409, 'Найдены две разные подписки. Проверьте их в Stripe и не оформляйте оплату повторно.');
+            $saved = $owner->subscription()->updateOrCreate([], ['provider' => 'stripe', 'provider_customer_id' => $customer, 'provider_subscription_id' => $id, 'plan' => $plan, 'status' => $subscription['status'] ?? 'incomplete', 'current_period_start' => $start ? now()->setTimestamp($start) : null, 'current_period_end' => $end ? now()->setTimestamp($end) : null, 'cancel_at_period_end' => (bool) ($subscription['cancel_at_period_end'] ?? false)]);
+            if (! $saved->active()) $this->restoreFreeFeatures($owner);
+        });
         $user->unsetRelation('subscription');
     }
 

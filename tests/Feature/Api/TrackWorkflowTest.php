@@ -52,6 +52,21 @@ class TrackWorkflowTest extends TestCase
         Storage::disk('local')->assertMissing($track->audio_path);
     }
 
+    public function test_stream_serves_seek_ranges_and_does_not_expose_pending_audio(): void
+    {
+        $track = Track::factory()->published()->create(['audio_path' => 'tracks/range-test.mp3']);
+        Storage::disk('local')->put($track->audio_path, '0123456789abcdefghijklmnopqrstuvwxyz');
+        $url = '/api/v1/tracks/'.$track->id.'/stream';
+        $range = $this->get($url, ['Range'=>'bytes=10-14'])->assertStatus(206)->assertHeader('Content-Range', 'bytes 10-14/36')->assertHeader('Content-Length', '5')->assertHeader('Accept-Ranges', 'bytes');
+        ob_start(); $range->baseResponse->sendContent(); $body = ob_get_clean();
+        $this->assertSame('abcde', $body);
+        $suffix = $this->get($url, ['Range'=>'bytes=-5'])->assertStatus(206)->assertHeader('Content-Range', 'bytes 31-35/36');
+        ob_start(); $suffix->baseResponse->sendContent(); $body = ob_get_clean();
+        $this->assertSame('vwxyz', $body);
+        $track->update(['status'=>TrackStatus::Pending]);
+        $this->get($url, ['Range'=>'bytes=0-3'])->assertNotFound();
+    }
+
     public function test_invalid_file_and_missing_genre_are_validation_errors(): void
     {
         Sanctum::actingAs(User::factory()->artist()->create());
