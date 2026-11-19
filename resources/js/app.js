@@ -1,4 +1,5 @@
 import { createLibraryViews } from './library.js';
+import { createPlayer } from './player.js';
 import { pricingView, billingView, choosePlan, billingAction, handleBillingQuery } from './billing.js';
 const API_BASE = (import.meta.env.VITE_API_URL || '/api/v1').replace(/\/$/, '');
 const TOKEN_KEY = 'homeostat_token';
@@ -19,11 +20,7 @@ const state = {
 };
 
 const root = document.querySelector('#app-root');
-// A single persistent player lets playback continue while navigating.
-const player = new Audio();
-let playingId = null;
-player.addEventListener('playing', () => { if (playingId) registerPlay(playingId).catch(() => {}); });
-player.addEventListener('error', () => notify('Не удалось воспроизвести аудио. Проверьте файл трека.', 'error'));
+const player = createPlayer({ url: apiUrl, loadTrack: async id => dataOf(await api(`/tracks/${id}`)), registerPlay, escapeHtml, notify });
 function avatarMarkup(user, css = 'profile-avatar') {
     const url = user?.avatar_path?.startsWith('avatars/') ? `${apiUrl(`/users/${user.id}/avatar`)}?v=${encodeURIComponent(user.avatar_path)}` : mediaUrl(user?.avatar_path);
     return url ? `<img class="${css} avatar-image" src="${escapeHtml(url)}" alt="Аватар">` : `<span class="${css}">${escapeHtml((user?.name || 'G').slice(0, 1).toUpperCase())}</span>`;
@@ -32,20 +29,6 @@ function trackCoverUrl(track) {
     if (!track.cover_path) return '';
     return track.status === 'published' ? apiUrl(`/tracks/${track.id}/cover`) : mediaUrl(track.cover_path);
 }
-async function playTrack(id) {
-    const detail = document.querySelector(`[data-track-audio="${id}"]`);
-    if (detail) {
-        player.pause();
-        if (!detail.paused) { detail.pause(); return; }
-        await detail.play(); return;
-    }
-    document.querySelectorAll('[data-track-audio]').forEach(audio => audio.pause());
-    if (String(playingId) === String(id) && !player.paused) { player.pause(); return; }
-    if (String(playingId) !== String(id)) { playingId = id; player.src = apiUrl(`/tracks/${id}/stream`); }
-    await player.play();
-}
-
-
 function readUser() {
     try { return JSON.parse(localStorage.getItem(USER_KEY) || 'null'); } catch { return null; }
 }
@@ -118,7 +101,7 @@ window.__homeostat = { state, escapeHtml, api, dataOf, go, ApiError, formatDurat
 const { trackCard, uploadView, profileView, playlistListView, playlistDetailView, playlistSearchView, discoverPlaylistsView, tracksView, pagination, trackDetailView, commentView, statsView, trackCollectionView, adminView } = createLibraryViews({ state, escapeHtml, trackCoverUrl, formatDuration, formMessage, itemsOf, avatarMarkup, roleName, API_BASE, apiUrl, statusLabel });
 
 function shell(content, title = 'Обзор') {
-    const user = state.user; const isAdmin = user?.role === 'admin'; const canUpload = Boolean(user && ['artist', 'admin'].includes(user.role));
+    const user = state.user; const isAdmin = user?.role === 'admin'; const canUpload = Boolean(user);
     return `<div class="app-shell">
         <aside class="sidebar"><a class="brand" href="#tracks" aria-label="Homeostat"><span class="brand-mark"><span></span><span></span><span></span><span></span></span><span>homeostat</span></a>
             <nav class="primary-nav" aria-label="Основная навигация">
@@ -135,15 +118,14 @@ function shell(content, title = 'Обзор') {
             <div class="sidebar-bottom"><div class="mini-note"><span class="live-dot"></span><span>API online mode</span></div><button class="nav-link nav-button" data-action="logout"><span>↪</span> Выйти</button></div>
         </aside>
         <div class="main-column"><header class="topbar"><button class="mobile-menu" data-action="toggle-menu" aria-label="Открыть меню">☰</button><div class="breadcrumbs"><span>Homeostat</span><b>/</b><strong>${escapeHtml(title)}</strong></div><div class="top-actions"><a class="user-chip" href="#profile" title="Открыть профиль">${avatarMarkup(user, 'avatar')}<span class="user-chip-copy"><b>${escapeHtml(user?.name || 'Гость')}</b><small>${escapeHtml(roleName(user?.role))}</small></span></a></div></header><main class="content" id="screen">${content}</main></div>
-    </div><div id="toast" class="toast" role="status"></div>`;
+    </div><div id="player-slot"></div><div id="toast" class="toast" role="status"></div>`;
 }
 
 function formMessage(message = '') { return `<p class="form-message" data-form-message>${escapeHtml(message)}</p>`; }
 function fieldError(errors, field) { return errors?.[field]?.[0] ? `<small class="field-error">${escapeHtml(errors[field][0])}</small>` : ''; }
 
 function socialButtons(mode) {
-    const role = document.querySelector('#auth-form select[name="role"]')?.value || 'listener';
-    const suffix = mode === 'register' ? `?role=${encodeURIComponent(role)}` : '';
+    const suffix = '';
     return `<div class="auth-divider"><span>или продолжить через</span></div><div class="social-grid"><a class="social-button social-google" data-provider="google" href="${apiUrl(`/auth/google/redirect${suffix}`)}"><b>G</b><span>Google</span></a><a class="social-button social-apple" data-provider="apple" href="${apiUrl(`/auth/apple/redirect${suffix}`)}"><b>●</b><span>Apple ID</span></a><a class="social-button social-github" data-provider="github" href="${apiUrl(`/auth/github/redirect${suffix}`)}"><b>◈</b><span>GitHub</span></a></div>`;
 }
 
@@ -158,7 +140,7 @@ function captchaMarkup() {
 function loginView(mode = 'login', error = '') {
     const register = mode === 'register';
     const fields = register
-        ? `<label>Имя<input name="name" autocomplete="name" placeholder="Как к тебе обращаться" required><span class="inline-error" data-error="name"></span></label><label>Email<input name="email" type="email" autocomplete="email" placeholder="you@example.com" required><span class="inline-error" data-error="email"></span></label><label>Роль<select name="role"><option value="listener">Слушатель</option><option value="artist">Исполнитель</option></select></label>${captchaMarkup()}<div class="email-code-actions"><button class="button button-light" type="button" data-action="request-email-code">Получить код на почту</button><span class="inline-error" data-email-code-status></span></div><label class="is-hidden" data-email-code-field>Код из письма<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 цифр"><span class="inline-error" data-error="code"></span></label>`
+        ? `<label>Имя<input name="name" autocomplete="name" placeholder="Как к тебе обращаться" required><span class="inline-error" data-error="name"></span></label><label>Email<input name="email" type="email" autocomplete="email" placeholder="you@example.com" required><span class="inline-error" data-error="email"></span></label>${captchaMarkup()}<div class="email-code-actions"><button class="button button-light" type="button" data-action="request-email-code">Получить код на почту</button><span class="inline-error" data-email-code-status></span></div><label class="is-hidden" data-email-code-field>Код из письма<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 цифр"><span class="inline-error" data-error="code"></span></label>`
         : `<label>Email<input name="email" type="email" autocomplete="email" placeholder="you@example.com" required><span class="inline-error" data-error="email"></span></label><label>Пароль<input name="password" type="password" autocomplete="current-password" placeholder="Минимум 8 символов" required><span class="inline-error" data-error="password"></span></label>`;
     return `<div class="auth-layout"><section class="auth-art"><div class="orb orb-one"></div><div class="orb orb-two"></div><span class="eyebrow">SOUND • STATE • HOME</span><h1>Найди звук,<br><em>который остаётся.</em></h1><p>Homeostat собирает музыку вокруг твоего состояния — от первой ноты до собственного плейлиста.</p><div class="wave-hero" aria-hidden="true">${Array.from({ length: 32 }, (_, i) => `<i style="--h:${20 + ((i * 17) % 76)}%"></i>`).join('')}</div><div class="auth-art-note">Создавай свою сцену. Слушай своё.</div></section><section class="auth-card-wrap"><div class="auth-card"><div class="auth-card-head"><span class="eyebrow">${register ? 'NEW ACCOUNT' : 'WELCOME BACK'}</span><h2>${register ? 'Создай свой профиль' : 'С возвращением'}</h2><p>${register ? 'Код подтверждения придёт на указанную почту.' : 'Войдите, чтобы продолжить слушать.'}</p></div>${socialButtons(mode)}<div class="auth-divider auth-divider-small"><span>${register ? 'или создай аккаунт по email' : 'или войди по email'}</span></div><form id="auth-form" data-mode="${register ? 'register' : 'login'}" novalidate>${fields}${formMessage(error)}<button class="button button-primary button-wide" type="submit"><span>${register ? 'Подтвердить и создать' : 'Войти в Homeostat'}</span><b>→</b></button></form><div class="auth-switch">${register ? 'Уже есть аккаунт?' : 'Впервые здесь?'} <a href="#${register ? 'login' : 'register'}">${register ? 'Войти' : 'Создать профиль'}</a></div><p class="auth-legal">Продолжая, вы принимаете правила Homeostat и подтверждаете, что вам исполнилось 13 лет.</p></div></section></div>`;
 }
@@ -195,23 +177,27 @@ async function completeOAuth() {
     if (!handle && !oauthError) return false;
     window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
     if (oauthError) { go('login'); window.setTimeout(() => notify(oauthError, 'error'), 50); return true; }
-    try { setAuth(await api('/auth/oauth/exchange', { method: 'POST', auth: false, body: { handle } })); go('tracks'); window.setTimeout(() => notify('Авторизация выполнена', 'success'), 50); } catch (error) { go('login'); window.setTimeout(() => notify(readError(error), 'error'), 50); }
+    try { const result = await api('/auth/oauth/exchange', { method: 'POST', auth: false, body: { handle } }); setAuth(result); go(result.new_account ? 'welcome' : 'tracks'); window.setTimeout(() => notify('Авторизация выполнена', 'success'), 50); } catch (error) { go('login'); window.setTimeout(() => notify(readError(error), 'error'), 50); }
     return true;
 }
 
+let renderVersion = 0;
 async function render() {
+    const version = ++renderVersion;
     const route = currentRoute();
-    if (!state.token && !['login', 'register', 'tracks', 'pricing'].includes(route.path)) { go('login'); return; }
+    if (!state.token && !['login', 'register', 'tracks', 'pricing'].includes(route.path) && !/^tracks\/\d+$/.test(route.path) && !/^users\/\d+$/.test(route.path)) { go('login'); return; }
     if (state.token && ['login', 'register'].includes(route.path)) { go('tracks'); return; }
-    if (['login', 'register'].includes(route.path)) { if (route.path === 'register') { try { await loadCaptcha(); } catch (error) { state.captcha = { provider: 'math', question: 'Обновите страницу', id: '' }; } } root.innerHTML = loginView(route.path); bindEvents(); mountTurnstile(); return; }
+    if (['login', 'register'].includes(route.path)) { if (route.path === 'register') { try { await loadCaptcha(); } catch (error) { state.captcha = { provider: 'math', question: 'Обновите страницу', id: '' }; } } if (version !== renderVersion) return; root.innerHTML = loginView(route.path); bindEvents(); mountTurnstile(); return; }
     const screen = document.querySelector('#screen'); if (screen) screen.innerHTML = loadingView();
     let content = ''; let title = 'Обзор';
     try {
         if (route.path === 'tracks') { await ensureGenres(); await loadTracks(route.params); content = tracksView(); }
+        else if (route.path === 'welcome') { requireAuth(); content = `<div class="page-intro"><span class="eyebrow">WELCOME TO HOMEOSTAT</span><h1>Твоя музыка начинается здесь</h1><p>Выбирайте бесплатный план или сравните платные тарифы. Платная подписка необязательна.</p></div><div class="form-panel"><h2>Станьте исполнителем</h2><p>Оформите профиль и загрузите первый трек — аккаунт исполнителя появится автоматически. Трек поступит на проверку перед публикацией.</p><div class="action-row"><a class="button button-primary" href="#upload">Загрузить трек</a><a class="button button-light" href="#profile">Оформить профиль</a><a class="button button-light" href="#pricing">Посмотреть тарифы</a><a class="button button-light" href="#tracks">Продолжить бесплатно</a></div></div>`; title = 'Добро пожаловать'; }
+        else if (/^users\/\d+$/.test(route.path)) { const user = dataOf(await api(`/users/${route.path.split('/')[1]}`, {auth:false})); const links = Object.entries(user.social_links || {}).filter(([,url]) => typeof url === 'string' && /^https?:\/\//i.test(url)).map(([name,url]) => `<a class="button button-light" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(({website:'Сайт',youtube:'YouTube',telegram:'Telegram'})[name] || name)} ↗</a>`).join(''); content = `<div class="profile-hero">${avatarMarkup(user)}<div><span class="eyebrow">ARTIST PROFILE</span><h1>${escapeHtml(user.name)}</h1><p>${escapeHtml(roleName(user.role))}</p></div></div><section class="form-panel"><h2>О себе</h2><p>${escapeHtml(user.bio || 'Пользователь пока не заполнил описание.')}</p><div class="action-row">${links}</div></section>`; title = 'Профиль'; }
         else if (route.path.startsWith('tracks/')) { const id = route.path.split('/')[1]; // Send the optional bearer token so the API can authorize the owner/admin
             // to view a pending track immediately after upload. Guests still get
             // the same server-side 404 for unpublished tracks.
-            const result = await api(`/tracks/${id}`); state.currentTrack = dataOf(result); const comments = itemsOf(await api(`/tracks/${id}/comments`)); state.currentTrackLiked = await checkLiked(id); state.currentArtistFollowing = false; if (state.user && state.currentTrack.artist?.id && state.user.id !== state.currentTrack.artist.id) { const status = await api(`/users/${state.user.id}/following/${state.currentTrack.artist.id}`); state.currentArtistFollowing = Boolean(status.following); } content = trackDetailView(state.currentTrack, comments); title = 'Трек'; }
+            const result = await api(`/tracks/${id}`); state.currentTrack = dataOf(result); let comments = []; state.commentsUnavailable = false; try { comments = itemsOf(await api(`/tracks/${id}/comments`)); } catch { state.commentsUnavailable = true; } state.currentTrackLiked = await checkLiked(id); state.currentArtistFollowing = false; if (state.user && state.currentTrack.artist?.id && state.user.id !== state.currentTrack.artist.id) { try { const status = await api(`/users/${state.user.id}/following/${state.currentTrack.artist.id}`); state.currentArtistFollowing = Boolean(status.following); } catch { state.currentArtistFollowing = null; } } content = trackDetailView(state.currentTrack, comments); title = 'Трек'; }
         else if (route.path === 'feed') { requireAuth(); const result = await api(`/users/${state.user.id}/feed`); content = trackCollectionView(itemsOf(result), 'Моя лента', 'Новые публикации артистов, на которых вы подписаны.'); title = 'Моя лента'; }
         else if (route.path === 'favorites') { requireAuth(); const result = await api(`/users/${state.user.id}/likes`); content = trackCollectionView(itemsOf(result), 'Избранное', 'Треки, которые вы сохранили лайком.'); title = 'Избранное'; }
         else if (route.path === 'playlists') { requireAuth(); content = playlistListView(itemsOf(await api('/playlists'))); title = 'Плейлисты'; }
@@ -227,9 +213,10 @@ async function render() {
         else if (route.path === 'billing') { requireAuth(); const result = await api('/billing/me'); state.billing = dataOf(result); content = billingView(state.billing); title = 'Подписка'; }
         else if (route.path === 'profile') { requireAuth(); const result = await api('/me'); state.user = dataOf(result); localStorage.setItem(USER_KEY, JSON.stringify(state.user)); const page = key => Math.max(1, Number.parseInt(route.params.get(key), 10) || 1); const [likes, following, lists] = await Promise.all([api(`/users/${state.user.id}/likes?page=${page('tracks_page')}`), api(`/me/following?page=${page('artists_page')}`), api(`/me/liked-playlists?page=${page('playlists_page')}`)]); content = profileView(likes, following, lists, route.params); title = 'Профиль'; }
         else { go(state.token ? 'tracks' : 'login'); return; }
+        if (version !== renderVersion) return;
         root.innerHTML = shell(content, title); bindEvents();
     } catch (error) {
-        if (error.status === 401) return;
+        if (version !== renderVersion || error.status === 401) return;
         const message = error.status === 403 ? 'Эта часть Homeostat доступна другой роли пользователя.' : readError(error);
         root.innerHTML = shell(`<div class="error-state"><span>${error.status || '!'}</span><h1>${error.status === 403 ? 'Доступ ограничен' : 'Не удалось загрузить данные'}</h1><p>${escapeHtml(message)}</p><button class="button button-primary" data-action="retry">Повторить</button></div>`, error.status === 403 ? 'Нет доступа' : 'Ошибка'); bindEvents();
     }
@@ -247,16 +234,16 @@ async function loadTracks(params = new URLSearchParams()) {
 }
 async function checkLiked(trackId) {
     if (!state.token || !state.user) return false;
-    try { return Boolean((await api(`/users/${state.user.id}/likes/${trackId}`)).liked); } catch { return false; }
+    try { return Boolean((await api(`/users/${state.user.id}/likes/${trackId}`)).liked); } catch { return null; }
 }
 function applyErrors(form, error) { Object.entries(error.errors || {}).forEach(([field, messages]) => { const node = form.querySelector(`[data-error="${field}"]`); if (node) node.textContent = messages[0] || ''; }); const message = form.querySelector('[data-form-message]'); if (message) { message.textContent = readError(error); message.classList.add('is-error'); } }
 function validate(form, fields) { let valid = true; fields.forEach(field => { const input = form.elements[field]; const node = form.querySelector(`[data-error="${field}"]`); if (!input || !node) return; if (!input.value || (input.type === 'file' && !input.files.length)) { node.textContent = 'Заполните поле.'; valid = false; } else node.textContent = ''; }); return valid; }
 
 function bindEvents() {
+    player.mount();
     document.querySelectorAll('[data-action="toggle-menu"]').forEach(btn => btn.addEventListener('click', () => document.querySelector('.sidebar')?.classList.toggle('is-open')));
     document.querySelectorAll('[data-action="refresh-captcha"]').forEach(btn => btn.addEventListener('click', async () => { try { await loadCaptcha(); render(); } catch (error) { notify(readError(error), 'error'); } }));
     document.querySelectorAll('[data-action="request-email-code"]').forEach(btn => btn.addEventListener('click', requestEmailCode));
-    document.querySelectorAll('[data-provider]').forEach(link => link.addEventListener('click', () => { const role = document.querySelector('#auth-form select[name="role"]')?.value || 'listener'; link.href = `${apiUrl(`/auth/${link.dataset.provider}/redirect`)}?role=${encodeURIComponent(role)}`; }));
     document.querySelectorAll('[data-action="logout"]').forEach(btn => btn.addEventListener('click', async () => { try { await api('/logout'); } catch {} clearAuth(); go('login'); notify('Вы вышли из аккаунта', 'success'); }));
     document.querySelectorAll('[data-action="retry"]').forEach(btn => btn.addEventListener('click', render));
     document.querySelectorAll('[data-cycle]').forEach(btn => btn.addEventListener('click', () => { state.pricingCycle = btn.dataset.cycle; render(); }));
@@ -265,7 +252,7 @@ function bindEvents() {
     document.querySelectorAll('[data-action="billing-cancel"]').forEach(btn => btn.addEventListener('click', () => billingAction('cancel')));
     document.querySelectorAll('[data-action="billing-resume"]').forEach(btn => btn.addEventListener('click', () => billingAction('resume')));
     document.querySelectorAll('[data-action="page"]').forEach(btn => btn.addEventListener('click', () => { if (!btn.disabled) go(`tracks?page=${Number(btn.dataset.page)}`); }));
-    document.querySelectorAll('[data-action="play"]').forEach(btn => btn.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); playTrack(btn.dataset.id).catch(() => notify('Не удалось воспроизвести трек.', 'error')); }));
+    document.querySelectorAll('[data-action="play"]').forEach(btn => btn.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); player.play(btn.dataset.id).catch(() => notify('Не удалось воспроизвести трек.', 'error')); }));
     document.querySelectorAll('[data-action="like"]').forEach(btn => btn.addEventListener('click', () => toggleLike(btn)));
     document.querySelectorAll('[data-action="follow"]').forEach(btn => btn.addEventListener('click', () => toggleFollow(btn)));
     document.querySelectorAll('[data-action="delete-track"]').forEach(btn => btn.addEventListener('click', () => deleteTrack(btn.dataset.id)));
@@ -277,7 +264,6 @@ function bindEvents() {
     document.querySelectorAll('[data-action="delete-genre"]').forEach(btn => btn.addEventListener('click', () => deleteGenre(btn.dataset.id)));
     document.querySelectorAll('[data-action="edit-genre"]').forEach(btn => btn.addEventListener('click', () => editGenre(btn.dataset.id, btn.dataset.name)));
     document.querySelectorAll('[data-action="unblock-user"]').forEach(btn => btn.addEventListener('click', () => blockUser(false)));
-    document.querySelectorAll('[data-track-audio]').forEach(audio => audio.addEventListener('playing', () => { player.pause(); registerPlay(audio.dataset.track).catch(() => {}); }));
     const authForm = document.querySelector('#auth-form'); if (authForm) authForm.addEventListener('submit', submitAuth);
     const filterForm = document.querySelector('#filter-form'); if (filterForm) filterForm.addEventListener('submit', submitFilters);
     const trackForm = document.querySelector('#track-form'); if (trackForm) { trackForm.addEventListener('submit', submitTrack); trackForm.elements.audio?.addEventListener('change', () => inspectAudio(trackForm)); }
@@ -339,7 +325,7 @@ async function submitEmailRegistration(event) {
             method: 'POST', auth: false,
             body: Object.fromEntries(new FormData(form).entries()),
         });
-        setAuth(result); notify('Профиль создан', 'success'); go('tracks');
+        setAuth(result); notify('Вход выполнен', 'success'); go(result.new_account ? 'welcome' : 'tracks');
     } catch (error) { applyErrors(form, error); }
 }
 async function submitFilters(event) { event.preventDefault(); const data = new FormData(event.currentTarget); state.list.filters = { ...state.list.filters, q: data.get('q') || '', genre_id: data.get('genre_id') || '', sort: data.get('sort') || 'created_at', page: 1 }; go(`tracks?${new URLSearchParams(state.list.filters)}`); }
@@ -354,7 +340,7 @@ async function submitTrack(event) {
     try {
         let result;
         if (editId) result = await api(`/tracks/${editId}`, { method: 'PATCH', body: { title: form.elements.title.value, genre_id: form.elements.genre_id.value, description: form.elements.description.value || null } });
-        else result = await uploadTrackWithProgress(form);
+        else { result = await uploadTrackWithProgress(form); try { const updated = await api('/me'); state.user = dataOf(updated); localStorage.setItem(USER_KEY, JSON.stringify(state.user)); } catch { /* Upload already succeeded; never prompt a duplicate upload. */ } }
         const track = dataOf(result); if (editId) { notify('Изменения сохранены', 'success'); go(`tracks/${track.id}`); } else go('upload-success');
     } catch (error) { applyErrors(form, error); } finally { submit.disabled = false; }
 }
@@ -407,7 +393,7 @@ async function toggleLike(button) { try { const id = button.dataset.id; const li
 async function toggleFollow(button) { const artistId = button.dataset.id; if (!artistId || !state.user) return; try { const following = button.dataset.following === 'true'; if (following) await api(`/users/${state.user.id}/following/${artistId}`, { method: 'DELETE' }); else await api(`/users/${state.user.id}/following/${artistId}`, { method: 'PUT' }); button.dataset.following = String(!following); button.textContent = !following ? '✓ Вы подписаны' : '＋ Подписаться'; notify(!following ? 'Подписка оформлена' : 'Подписка отменена', 'success'); } catch (error) { notify(readError(error), 'error'); } }
 async function submitComment(event) { event.preventDefault(); const form = event.currentTarget; try { await api(`/tracks/${state.currentTrack.id}/comments`, { method: 'POST', body: { body: form.elements.body.value } }); notify('Комментарий опубликован', 'success'); render(); } catch (error) { applyErrors(form, error); } }
 async function deleteComment(id) { if (!window.confirm('Удалить комментарий?')) return; try { await api(`/comments/${id}`, { method: 'DELETE' }); notify('Комментарий удалён', 'success'); render(); } catch (error) { notify(readError(error), 'error'); } }
-async function submitProfile(event) { event.preventDefault(); const form = event.currentTarget; try { if (form.elements.avatar.files[0]) { const data = new FormData(); data.append('avatar', form.elements.avatar.files[0]); const uploaded = await api('/me/avatar', {method:'POST',body:data}); state.user = dataOf(uploaded); localStorage.setItem(USER_KEY, JSON.stringify(state.user)); } const result = await api('/me', { method: 'PATCH', body: { name: form.elements.name.value, bio: form.elements.bio.value || null } }); state.user = dataOf(result); localStorage.setItem(USER_KEY, JSON.stringify(state.user)); notify('Профиль обновлён', 'success'); render(); } catch (error) { applyErrors(form, error); } }
+async function submitProfile(event) { event.preventDefault(); const form = event.currentTarget; try { if (form.elements.avatar.files[0]) { const data = new FormData(); data.append('avatar', form.elements.avatar.files[0]); const uploaded = await api('/me/avatar', {method:'POST',body:data}); state.user = dataOf(uploaded); localStorage.setItem(USER_KEY, JSON.stringify(state.user)); } const result = await api('/me', { method: 'PATCH', body: { name: form.elements.name.value, bio: form.elements.bio.value || null, social_links: { website: form.elements.website.value || null, youtube: form.elements.youtube.value || null, telegram: form.elements.telegram.value || null } } }); state.user = dataOf(result); localStorage.setItem(USER_KEY, JSON.stringify(state.user)); notify('Профиль обновлён', 'success'); render(); } catch (error) { applyErrors(form, error); } }
 async function createPlaylist(event) { event.preventDefault(); const form = event.currentTarget; try { const result = await api('/playlists', { method: 'POST', body: { title: form.elements.title.value } }); notify('Плейлист создан', 'success'); go(`playlists/${dataOf(result).id}`); } catch (error) { applyErrors(form, error); } }
 async function editPlaylist(event) { event.preventDefault(); const form = event.currentTarget; try { await api(`/playlists/${form.dataset.id}`, { method: 'PATCH', body: { title: form.elements.title.value, description: form.elements.description.value || null, is_public: form.elements.is_public.checked } }); notify('Плейлист обновлён', 'success'); render(); } catch (error) { applyErrors(form, error); } }
 async function deletePlaylist(id) { if (!window.confirm('Удалить плейлист?')) return; try { await api(`/playlists/${id}`, { method: 'DELETE' }); notify('Плейлист удалён', 'success'); go('playlists'); } catch (error) { notify(readError(error), 'error'); } }
