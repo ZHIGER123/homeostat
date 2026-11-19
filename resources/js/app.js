@@ -1,3 +1,4 @@
+import { createLibraryViews } from './library.js';
 import { pricingView, billingView, choosePlan, billingAction, handleBillingQuery } from './billing.js';
 const API_BASE = (import.meta.env.VITE_API_URL || '/api/v1').replace(/\/$/, '');
 const TOKEN_KEY = 'homeostat_token';
@@ -9,6 +10,7 @@ const state = {
     genres: [],
     currentTrack: null,
     currentTrackLiked: false,
+    currentArtistFollowing: false,
     list: { items: [], meta: {}, filters: { q: '', genre_id: '', sort: 'created_at', direction: 'desc', page: 1 } },
     captcha: null,
     plans: [],
@@ -17,6 +19,32 @@ const state = {
 };
 
 const root = document.querySelector('#app-root');
+// A single persistent player lets playback continue while navigating.
+const player = new Audio();
+let playingId = null;
+player.addEventListener('playing', () => { if (playingId) registerPlay(playingId).catch(() => {}); });
+player.addEventListener('error', () => notify('Не удалось воспроизвести аудио. Проверьте файл трека.', 'error'));
+function avatarMarkup(user, css = 'profile-avatar') {
+    const url = user?.avatar_path?.startsWith('avatars/') ? `${apiUrl(`/users/${user.id}/avatar`)}?v=${encodeURIComponent(user.avatar_path)}` : mediaUrl(user?.avatar_path);
+    return url ? `<img class="${css} avatar-image" src="${escapeHtml(url)}" alt="Аватар">` : `<span class="${css}">${escapeHtml((user?.name || 'G').slice(0, 1).toUpperCase())}</span>`;
+}
+function trackCoverUrl(track) {
+    if (!track.cover_path) return '';
+    return track.status === 'published' ? apiUrl(`/tracks/${track.id}/cover`) : mediaUrl(track.cover_path);
+}
+async function playTrack(id) {
+    const detail = document.querySelector(`[data-track-audio="${id}"]`);
+    if (detail) {
+        player.pause();
+        if (!detail.paused) { detail.pause(); return; }
+        await detail.play(); return;
+    }
+    document.querySelectorAll('[data-track-audio]').forEach(audio => audio.pause());
+    if (String(playingId) === String(id) && !player.paused) { player.pause(); return; }
+    if (String(playingId) !== String(id)) { playingId = id; player.src = apiUrl(`/tracks/${id}/stream`); }
+    await player.play();
+}
+
 
 function readUser() {
     try { return JSON.parse(localStorage.getItem(USER_KEY) || 'null'); } catch { return null; }
@@ -87,9 +115,10 @@ function notify(message, type = 'info') {
     window.clearTimeout(notify.timer); notify.timer = window.setTimeout(() => node.classList.remove('is-visible'), 3600);
 }
 window.__homeostat = { state, escapeHtml, api, dataOf, go, ApiError, formatDuration, notify };
+const { trackCard, uploadView, profileView, playlistListView, playlistDetailView, playlistSearchView, discoverPlaylistsView, tracksView, pagination, trackDetailView, commentView, statsView, trackCollectionView, adminView } = createLibraryViews({ state, escapeHtml, trackCoverUrl, formatDuration, formMessage, itemsOf, avatarMarkup, roleName, API_BASE, apiUrl, statusLabel });
 
 function shell(content, title = 'Обзор') {
-    const user = state.user; const isAdmin = user?.role === 'admin'; const canUpload = Boolean(user);
+    const user = state.user; const isAdmin = user?.role === 'admin'; const canUpload = Boolean(user && ['artist', 'admin'].includes(user.role));
     return `<div class="app-shell">
         <aside class="sidebar"><a class="brand" href="#tracks" aria-label="Homeostat"><span class="brand-mark"><span></span><span></span><span></span><span></span></span><span>homeostat</span></a>
             <nav class="primary-nav" aria-label="Основная навигация">
@@ -105,7 +134,7 @@ function shell(content, title = 'Обзор') {
             </nav>
             <div class="sidebar-bottom"><div class="mini-note"><span class="live-dot"></span><span>API online mode</span></div><button class="nav-link nav-button" data-action="logout"><span>↪</span> Выйти</button></div>
         </aside>
-        <div class="main-column"><header class="topbar"><button class="mobile-menu" data-action="toggle-menu" aria-label="Открыть меню">☰</button><div class="breadcrumbs"><span>Homeostat</span><b>/</b><strong>${escapeHtml(title)}</strong></div><div class="top-actions"><a class="user-chip" href="#profile" title="Открыть профиль"><span class="avatar">${escapeHtml((user?.name || 'G').slice(0, 1).toUpperCase())}</span><span class="user-chip-copy"><b>${escapeHtml(user?.name || 'Гость')}</b><small>${escapeHtml(roleName(user?.role))}</small></span></a></div></header><main class="content" id="screen">${content}</main></div>
+        <div class="main-column"><header class="topbar"><button class="mobile-menu" data-action="toggle-menu" aria-label="Открыть меню">☰</button><div class="breadcrumbs"><span>Homeostat</span><b>/</b><strong>${escapeHtml(title)}</strong></div><div class="top-actions"><a class="user-chip" href="#profile" title="Открыть профиль">${avatarMarkup(user, 'avatar')}<span class="user-chip-copy"><b>${escapeHtml(user?.name || 'Гость')}</b><small>${escapeHtml(roleName(user?.role))}</small></span></a></div></header><main class="content" id="screen">${content}</main></div>
     </div><div id="toast" class="toast" role="status"></div>`;
 }
 
@@ -133,67 +162,12 @@ function loginView(mode = 'login', error = '') {
         : `<label>Email<input name="email" type="email" autocomplete="email" placeholder="you@example.com" required><span class="inline-error" data-error="email"></span></label><label>Пароль<input name="password" type="password" autocomplete="current-password" placeholder="Минимум 8 символов" required><span class="inline-error" data-error="password"></span></label>`;
     return `<div class="auth-layout"><section class="auth-art"><div class="orb orb-one"></div><div class="orb orb-two"></div><span class="eyebrow">SOUND • STATE • HOME</span><h1>Найди звук,<br><em>который остаётся.</em></h1><p>Homeostat собирает музыку вокруг твоего состояния — от первой ноты до собственного плейлиста.</p><div class="wave-hero" aria-hidden="true">${Array.from({ length: 32 }, (_, i) => `<i style="--h:${20 + ((i * 17) % 76)}%"></i>`).join('')}</div><div class="auth-art-note">Создавай свою сцену. Слушай своё.</div></section><section class="auth-card-wrap"><div class="auth-card"><div class="auth-card-head"><span class="eyebrow">${register ? 'NEW ACCOUNT' : 'WELCOME BACK'}</span><h2>${register ? 'Создай свой профиль' : 'С возвращением'}</h2><p>${register ? 'Код подтверждения придёт на указанную почту.' : 'Войдите, чтобы продолжить слушать.'}</p></div>${socialButtons(mode)}<div class="auth-divider auth-divider-small"><span>${register ? 'или создай аккаунт по email' : 'или войди по email'}</span></div><form id="auth-form" data-mode="${register ? 'register' : 'login'}" novalidate>${fields}${formMessage(error)}<button class="button button-primary button-wide" type="submit"><span>${register ? 'Подтвердить и создать' : 'Войти в Homeostat'}</span><b>→</b></button></form><div class="auth-switch">${register ? 'Уже есть аккаунт?' : 'Впервые здесь?'} <a href="#${register ? 'login' : 'register'}">${register ? 'Войти' : 'Создать профиль'}</a></div><p class="auth-legal">Продолжая, вы принимаете правила Homeostat и подтверждаете, что вам исполнилось 13 лет.</p></div></section></div>`;
 }
-function tracksView() {
-    const filters = state.list.filters; const meta = state.list.meta || {};
-    const cards = state.list.items.length ? state.list.items.map(trackCard).join('') : `<div class="empty-state"><span class="empty-icon">⌁</span><h3>Пока тихо</h3><p>Измените фильтр или загрузите первый трек.</p></div>`;
-    return `<section class="hero-banner"><div><span class="eyebrow">YOUR DAILY FREQUENCY</span><h1>Музыка, которая<br><em>на твоей волне.</em></h1><p>Открывай новые треки, сохраняй состояние и слушай без лишнего шума.</p></div><div class="hero-disc" aria-hidden="true"><div class="disc-inner"></div><span>H</span></div></section><section class="section-head"><div><span class="eyebrow">DISCOVER</span><h2>Каталог треков</h2></div><span class="result-count">${meta.total !== undefined ? `${meta.total} треков` : 'Загрузка…'}</span></section><form id="filter-form" class="filter-bar"><label class="search-field"><span>⌕</span><input name="q" value="${escapeHtml(filters.q)}" placeholder="Поиск по названию или артисту"></label><label><span class="sr-only">Жанр</span><select name="genre_id"><option value="">Все жанры</option>${state.genres.map(g => `<option value="${g.id}" ${String(filters.genre_id) === String(g.id) ? 'selected' : ''}>${escapeHtml(g.name)}</option>`).join('')}</select></label><label><span class="sr-only">Сортировка</span><select name="sort"><option value="created_at" ${filters.sort === 'created_at' ? 'selected' : ''}>Новейшие</option><option value="plays_count" ${filters.sort === 'plays_count' ? 'selected' : ''}>По прослушиваниям</option><option value="likes_count" ${filters.sort === 'likes_count' ? 'selected' : ''}>По лайкам</option></select></label><button class="button button-dark" type="submit">Найти</button></form><div class="cards-grid">${cards}</div>${pagination(meta)}`;
-}
 
-function trackCard(track) {
-    const cover = mediaUrl(track.cover_path); const artist = track.artist?.name || 'Неизвестный артист';
-    return `<article class="track-card" data-track-id="${track.id}"><div class="cover-art ${cover ? 'has-image' : ''}" ${cover ? `style="background-image:url('${escapeHtml(cover)}')"` : ''}><a class="cover-link" href="#tracks/${track.id}" aria-label="Открыть ${escapeHtml(track.title)}"><span>${cover ? '' : 'H'}</span></a><button class="play-button" data-action="play" data-id="${track.id}" type="button" aria-label="Слушать">▶</button></div><div class="track-card-copy"><a href="#tracks/${track.id}" class="track-title">${escapeHtml(track.title)}</a><p>${escapeHtml(artist)}</p><div class="track-meta"><span>${escapeHtml(track.genre?.name || 'Без жанра')}</span><span>${formatDuration(track.duration)}</span></div></div></article>`;
-}
 
-function pagination(meta) {
-    if (!meta.last_page || meta.last_page <= 1) return '';
-    const page = meta.current_page || 1;
-    return `<div class="pagination"><button class="button button-ghost" data-action="page" data-page="${page - 1}" ${page <= 1 ? 'disabled' : ''}>←</button><span>Страница <b>${page}</b> из ${meta.last_page}</span><button class="button button-ghost" data-action="page" data-page="${page + 1}" ${page >= meta.last_page ? 'disabled' : ''}>→</button></div>`;
-}
 
-function trackDetailView(track, comments = []) {
-    const cover = mediaUrl(track.cover_path); const canEdit = state.user && (state.user.role === 'admin' || state.user.id === track.artist?.id); const liked = state.currentTrackLiked;
-    const commentsHtml = comments.length ? comments.map(commentView).join('') : `<div class="empty-inline">Комментариев пока нет. Будьте первым.</div>`;
-    return `<div class="back-row"><a href="#tracks">← Вернуться к каталогу</a></div><section class="detail-panel"><div class="detail-cover ${cover ? 'has-image' : ''}" ${cover ? `style="background-image:url('${escapeHtml(cover)}')"` : ''}><span>${cover ? '' : 'H'}</span><button class="play-button play-large" data-action="play" data-id="${track.id}" type="button">▶</button></div><div class="detail-copy"><span class="eyebrow">TRACK / ${escapeHtml(track.status === 'rejected' ? `${statusLabel(track.status)}: ${track.reject_reason || ''}` : statusLabel(track.status))}</span><h1>${escapeHtml(track.title)}</h1><p class="detail-artist">${escapeHtml(track.artist?.name || 'Неизвестный артист')}</p><p>${escapeHtml(track.description || 'У этого трека пока нет описания.')}</p><div class="detail-stats"><span><b data-play-count="${track.id}">${track.plays_count || 0}</b> прослушиваний</span><span><b>${track.likes_count || 0}</b> лайков</span><span><b>${track.comments_count || comments.length || 0}</b> комментариев</span><span><b>${formatDuration(track.duration)}</b> длительность</span></div><audio class="audio-player" controls preload="none" data-track-audio="${track.id}" src="${escapeHtml(`${API_BASE}/tracks/${track.id}/stream`)}"></audio><div class="action-row"><button class="button ${liked ? 'button-success' : 'button-light'}" data-action="like" data-id="${track.id}" data-liked="${liked}">${liked ? '♥ В избранном' : '♡ Добавить в избранное'}</button><button class="button button-light" data-action="follow" data-id="${track.artist?.id || ''}" data-following="false">＋ Подписаться</button>${canEdit ? `<a class="button button-light" href="#edit/${track.id}">Редактировать</a><button class="button button-danger" data-action="delete-track" data-id="${track.id}">Удалить</button>` : ''}</div></div></section><section class="comments-panel"><div class="section-head compact"><div><span class="eyebrow">COMMUNITY</span><h2>Комментарии</h2></div></div>${state.token ? `<form id="comment-form" class="inline-form"><textarea name="body" rows="2" minlength="2" maxlength="1000" placeholder="Оставьте добрый комментарий…" required></textarea><button class="button button-primary" type="submit">Опубликовать</button></form>` : '<p class="muted-copy">Войдите, чтобы оставить комментарий.</p>'}<div class="comment-list">${commentsHtml}</div></section>`;
-}
 
-function commentView(comment) {
-    const author = comment.author || comment.user || {}; const owner = state.user && (state.user.role === 'admin' || state.user.id === (comment.user_id || author.id));
-    return `<article class="comment-item"><div class="avatar avatar-small">${escapeHtml((author.name || 'U').slice(0, 1).toUpperCase())}</div><div class="comment-body"><div class="comment-head"><b>${escapeHtml(author.name || 'Пользователь')}</b><small>${escapeHtml(comment.created_at || '')}</small></div><p>${escapeHtml(comment.body)}</p></div>${owner ? `<button class="icon-button" title="Удалить комментарий" data-action="delete-comment" data-id="${comment.id}">×</button>` : ''}</article>`;
-}
 
-function uploadView(track = null) {
-    const edit = Boolean(track);
-    return `<div class="page-intro"><span class="eyebrow">${edit ? 'EDIT TRACK' : 'CREATOR STUDIO'}</span><h1>${edit ? 'Настрой звучание' : 'Добавь свой трек'}</h1><p>${edit ? 'Обнови данные — после изменений трек снова пройдёт модерацию.' : 'Любой зарегистрированный пользователь может загрузить аудиофайл, выбрать жанр и отправить релиз на модерацию.'}</p></div><form id="track-form" class="form-panel" data-edit-id="${edit ? track.id : ''}" novalidate><div class="form-grid"><label>Название трека<input name="title" value="${escapeHtml(track?.title || '')}" placeholder="Например, Night Drive" required><span class="inline-error" data-error="title"></span></label><label>Жанр<select name="genre_id" required><option value="">Выберите жанр</option>${state.genres.map(g => `<option value="${g.id}" ${String(track?.genre?.id) === String(g.id) ? 'selected' : ''}>${escapeHtml(g.name)}</option>`).join('')}</select><span class="inline-error" data-error="genre_id"></span></label><label>Длительность, секунд<input name="duration" type="number" min="1" value="${escapeHtml(track?.duration || '')}" placeholder="240" required><span class="inline-error" data-error="duration"></span></label><label class="wide-field">Описание<textarea name="description" rows="4" placeholder="О чём этот трек?">${escapeHtml(track?.description || '')}</textarea><span class="inline-error" data-error="description"></span></label>${edit ? '' : `<label class="wide-field file-field">Аудиофайл<input name="audio" type="file" accept="audio/mpeg,audio/wav,audio/ogg,.mp3,.wav,.ogg" required><span class="file-hint">MP3, WAV или OGG · до 50 МБ</span><span class="inline-error" data-error="audio"></span></label><label class="wide-field file-field">Обложка<input name="cover" type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png"><span class="file-hint">JPG или PNG · до 5 МБ</span><span class="inline-error" data-error="cover"></span></label>`}</div><div class="upload-progress is-hidden" data-upload-progress><div class="progress-label"><span>Загрузка файла…</span><b data-upload-percent>0%</b></div><progress max="100" value="0" data-upload-bar></progress></div>${formMessage()}<div class="action-row"><a class="button button-light" href="${edit ? `#tracks/${track.id}` : '#tracks'}">Отмена</a><button class="button button-primary" type="submit">${edit ? 'Сохранить изменения' : 'Отправить на модерацию'} <b>→</b></button></div></form>`;
-}
 
-function statsView(data = {}, filters = {}) {
-    const byStatus = data.by_status || {};
-    return `<div class="page-intro"><span class="eyebrow">ARTIST INSIGHTS</span><h1>Статистика</h1><p>Сводка по твоим трекам на основе данных API.</p></div><form id="stats-filter" class="filter-bar compact-filter"><label>С даты<input type="date" name="from" value="${escapeHtml(filters.from || '')}"></label><label>По дату<input type="date" name="to" value="${escapeHtml(filters.to || '')}"></label><button class="button button-dark" type="submit">Обновить</button></form><div class="stats-grid"><div class="stat-card"><span>Треков</span><b>${data.tracks || 0}</b><small>за выбранный период</small></div><div class="stat-card accent"><span>Прослушиваний</span><b>${data.plays || 0}</b><small>всего засчитано</small></div><div class="stat-card"><span>Лайков</span><b>${data.likes || 0}</b><small>на опубликованных треках</small></div><div class="stat-card"><span>Комментариев</span><b>${data.comments || 0}</b><small>всего</small></div></div><section class="insight-panel"><div><span class="eyebrow">STATUS MIX</span><h2>Состояние релизов</h2></div><div class="status-bars">${[['pending','На модерации'],['published','Опубликованы'],['rejected','Отклонены']].map(([key,label]) => `<div class="status-bar"><span>${label}</span><b>${byStatus[key] || 0}</b><i style="--value:${Math.min(100, Number(byStatus[key] || 0) * 12)}%"></i></div>`).join('')}</div></section>`;
-}
-
-function profileView() {
-    const user = state.user || {};
-    return `<div class="profile-hero"><span class="profile-avatar">${escapeHtml((user.name || 'G').slice(0, 1).toUpperCase())}</span><div><span class="eyebrow">YOUR PROFILE</span><h1>${escapeHtml(user.name || 'Пользователь')}</h1><p>${escapeHtml(roleName(user.role))} · ${escapeHtml(user.email || 'email скрыт')}</p></div></div><form id="profile-form" class="form-panel profile-form"><div class="form-grid"><label>Имя<input name="name" value="${escapeHtml(user.name || '')}" required><span class="inline-error" data-error="name"></span></label><label>Аватар<input name="avatar_path" value="${escapeHtml(user.avatar_path || '')}" placeholder="Путь к аватару или URL"></label><label class="wide-field">О себе<textarea name="bio" rows="4" maxlength="1000" placeholder="Расскажите о себе">${escapeHtml(user.bio || '')}</textarea></label></div>${formMessage()}<div class="action-row"><button class="button button-primary" type="submit">Сохранить профиль</button></div></form>`;
-}
-
-function playlistListView(items = []) {
-    const body = items.length ? items.map(p => `<a class="playlist-card" href="#playlists/${p.id}"><span class="playlist-icon">▤</span><span><b>${escapeHtml(p.title)}</b><small>${p.tracks_count || p.tracks?.length || 0} треков</small></span><span>→</span></a>`).join('') : `<div class="empty-state"><span class="empty-icon">▤</span><h3>Плейлистов пока нет</h3><p>Создайте подборку любимых треков.</p></div>`;
-    return `<div class="page-intro"><span class="eyebrow">YOUR COLLECTION</span><h1>Плейлисты</h1><p>Собирайте музыку в собственные подборки и меняйте порядок треков.</p></div><section class="form-panel compact-panel"><form id="playlist-create-form" class="inline-form"><input name="title" placeholder="Название нового плейлиста" required maxlength="255"><button class="button button-primary" type="submit">Создать</button></form></section><section class="playlist-list">${body}</section>`;
-}
-
-function playlistDetailView(playlist) {
-    const tracks = playlist.tracks || []; const options = state.list.items.filter(track => !tracks.some(item => item.id === track.id)).map(track => `<option value="${track.id}">${escapeHtml(track.title)} — ${escapeHtml(track.artist?.name || '')}</option>`).join('');
-    const rows = tracks.length ? tracks.map((track, index) => `<div class="playlist-track"><span class="track-position">${index + 1}</span><span class="playlist-track-copy"><b>${escapeHtml(track.title)}</b><small>${escapeHtml(track.artist?.name || '')}</small></span><button class="icon-button" data-action="playlist-move" data-playlist="${playlist.id}" data-index="${index}" data-direction="up" ${index === 0 ? 'disabled' : ''}>↑</button><button class="icon-button" data-action="playlist-move" data-playlist="${playlist.id}" data-index="${index}" data-direction="down" ${index === tracks.length - 1 ? 'disabled' : ''}>↓</button><button class="icon-button danger-icon" data-action="playlist-remove" data-playlist="${playlist.id}" data-track="${track.id}">×</button></div>`).join('') : `<div class="empty-inline">В плейлисте пока нет треков.</div>`;
-    return `<div class="back-row"><a href="#playlists">← Все плейлисты</a></div><div class="page-intro"><span class="eyebrow">PLAYLIST</span><h1>${escapeHtml(playlist.title)}</h1><p>${escapeHtml(playlist.description || 'Личная подборка Homeostat.')}</p></div><form id="playlist-edit-form" class="form-panel compact-panel" data-id="${playlist.id}"><div class="inline-form"><input name="title" value="${escapeHtml(playlist.title)}" maxlength="255" required><input name="description" value="${escapeHtml(playlist.description || '')}" maxlength="2000" placeholder="Описание"><button class="button button-light" type="submit">Переименовать</button><button class="button button-danger" type="button" data-action="delete-playlist" data-id="${playlist.id}">Удалить</button></div>${formMessage()}</form><section class="form-panel compact-panel"><form id="playlist-add-form" class="inline-form" data-id="${playlist.id}"><select name="track_id" required><option value="">Добавить опубликованный трек</option>${options}</select><button class="button button-primary" type="submit">Добавить</button></form></section><section class="playlist-tracks">${rows}</section>`;
-}
-
-function trackCollectionView(items, title, subtitle) { return `<div class="page-intro"><span class="eyebrow">${escapeHtml(title.toUpperCase())}</span><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)}</p></div><div class="cards-grid">${items.length ? items.map(trackCard).join('') : `<div class="empty-state"><span class="empty-icon">⌁</span><h3>Здесь пока пусто</h3><p>Когда появятся треки, они будут отображаться здесь.</p></div>`}</div>`; }
-
-function adminView(items = []) {
-    const moderation = items.length ? items.map(track => `<div class="moderation-row"><div class="moderation-cover">${track.cover_path ? '' : 'H'}</div><div class="moderation-main"><b>${escapeHtml(track.title)}</b><span>${escapeHtml(track.artist?.name || '—')} · ${escapeHtml(track.genre?.name || '—')}</span></div><span class="status status-pending">${escapeHtml(statusLabel(track.status))}</span><a class="button button-light" href="${apiUrl(`/tracks/${track.id}/stream`)}" target="_blank" rel="noopener">Прослушать</a><div class="action-row"><button class="button button-success" data-action="moderate" data-id="${track.id}" data-status="published">Одобрить</button><button class="button button-danger" data-action="moderate" data-id="${track.id}" data-status="rejected">Отклонить</button></div></div>`).join('') : `<div class="empty-state"><span class="empty-icon">✓</span><h3>Очередь пуста</h3><p>Новых треков на модерации нет.</p></div>`;
-    const genres = state.genres.map(g => `<div class="admin-list-row"><span><b>${escapeHtml(g.name)}</b><small>${escapeHtml(g.slug || '')}</small></span><button class="icon-button" data-action="edit-genre" data-id="${g.id}" data-name="${escapeHtml(g.name)}">✎</button><button class="icon-button danger-icon" data-action="delete-genre" data-id="${g.id}">×</button></div>`).join('');
-    return `<div class="page-intro"><span class="eyebrow">ADMIN SPACE</span><h1>Администрирование</h1><p>Модерация релизов, справочник жанров и блокировка пользователей.</p></div><section class="moderation-panel"><div class="section-head compact"><div><span class="eyebrow">RELEASES</span><h2>Очередь модерации</h2></div></div>${moderation}</section><div class="admin-grid"><section class="form-panel"><span class="eyebrow">GENRES</span><h2>Жанры</h2><form id="genre-form" class="inline-form"><input name="name" placeholder="Новый жанр" required><input name="slug" placeholder="slug (необязательно)"><button class="button button-primary" type="submit">Добавить</button></form><div class="admin-list">${genres || '<div class="empty-inline">Жанров нет.</div>'}</div></section><section class="form-panel"><span class="eyebrow">SAFETY</span><h2>Пользователь</h2><p class="muted-copy">Для блокировки нужен ID пользователя из профиля или API.</p><form id="block-form" class="inline-form"><input name="user_id" type="number" min="1" placeholder="ID пользователя" required><button class="button button-danger" type="submit">Заблокировать</button><button class="button button-light" type="button" data-action="unblock-user">Разблокировать</button></form></section></div>`;
-}
 
 function loadingView(label = 'Получаем данные…') { return `<div class="loading-state"><span class="spinner"></span>${escapeHtml(label)}</div>`; }
 
@@ -237,18 +211,21 @@ async function render() {
         else if (route.path.startsWith('tracks/')) { const id = route.path.split('/')[1]; // Send the optional bearer token so the API can authorize the owner/admin
             // to view a pending track immediately after upload. Guests still get
             // the same server-side 404 for unpublished tracks.
-            const result = await api(`/tracks/${id}`); state.currentTrack = dataOf(result); const comments = itemsOf(await api(`/tracks/${id}/comments`)); state.currentTrackLiked = await checkLiked(id); content = trackDetailView(state.currentTrack, comments); title = 'Трек'; }
+            const result = await api(`/tracks/${id}`); state.currentTrack = dataOf(result); const comments = itemsOf(await api(`/tracks/${id}/comments`)); state.currentTrackLiked = await checkLiked(id); state.currentArtistFollowing = false; if (state.user && state.currentTrack.artist?.id && state.user.id !== state.currentTrack.artist.id) { const status = await api(`/users/${state.user.id}/following/${state.currentTrack.artist.id}`); state.currentArtistFollowing = Boolean(status.following); } content = trackDetailView(state.currentTrack, comments); title = 'Трек'; }
         else if (route.path === 'feed') { requireAuth(); const result = await api(`/users/${state.user.id}/feed`); content = trackCollectionView(itemsOf(result), 'Моя лента', 'Новые публикации артистов, на которых вы подписаны.'); title = 'Моя лента'; }
         else if (route.path === 'favorites') { requireAuth(); const result = await api(`/users/${state.user.id}/likes`); content = trackCollectionView(itemsOf(result), 'Избранное', 'Треки, которые вы сохранили лайком.'); title = 'Избранное'; }
         else if (route.path === 'playlists') { requireAuth(); content = playlistListView(itemsOf(await api('/playlists'))); title = 'Плейлисты'; }
-        else if (route.path.startsWith('playlists/')) { requireAuth(); await loadTracks(new URLSearchParams()); const result = await api(`/playlists/${route.path.split('/')[1]}`); content = playlistDetailView(dataOf(result)); title = 'Плейлист'; }
-        else if (route.path === 'upload') { requireAuth(); await ensureGenres(); content = uploadView(); title = 'Загрузить'; }
+        else if (route.path === 'playlists/discover') { requireAuth(); const params = new URLSearchParams(route.params); const result = await api(`/playlists/discover?${params}`); content = discoverPlaylistsView(result, params); title = 'Плейлисты сообщества'; }
+        else if (/^playlists\/\d+\/search$/.test(route.path)) { requireAuth(); const id = route.path.split('/')[1]; const playlist = dataOf(await api(`/playlists/${id}`)); if (playlist.owner?.id !== state.user.id && state.user.role !== 'admin') throw new ApiError('Недостаточно прав.', 403); const params = new URLSearchParams(route.params); const result = await api(`/tracks?${params}`); content = playlistSearchView(playlist, result, params); title = 'Поиск треков'; }
+        else if (route.path.startsWith('playlists/')) { requireAuth(); const result = await api(`/playlists/${route.path.split('/')[1]}`); const liked = await api(`/playlists/${route.path.split('/')[1]}/like`); state.likedPlaylistIds = liked.liked ? [dataOf(result).id] : []; content = playlistDetailView(dataOf(result)); title = 'Плейлист'; }
+        else if (route.path === 'upload') { requireAuth(); await ensureGenres(); try { state.billing = dataOf(await api('/billing/me')); } catch { state.billing = null; } content = uploadView(); title = 'Загрузить'; }
+        else if (route.path === 'upload-success') { requireAuth(); content = `<div class="empty-state"><span class="empty-icon">✓</span><h1>Трек отправлен на модерацию</h1><p>После проверки он появится в каталоге. Повторная загрузка не нужна.</p><div class="action-row"><a class="button button-primary" href="#tracks">В каталог</a><a class="button button-light" href="#upload">Загрузить ещё</a></div></div>`; title = 'Загрузка завершена'; }
         else if (route.path.startsWith('edit/')) { requireAuth(); await ensureGenres(); const result = await api(`/tracks/${route.path.split('/')[1]}`); content = uploadView(dataOf(result)); title = 'Редактировать'; }
         else if (route.path === 'admin') { requireRole('admin'); await ensureGenres(); const result = await api('/admin/tracks?status=pending'); content = adminView(itemsOf(result)); title = 'Администрирование'; }
         else if (route.path === 'stats') { requireAuth(); const filters = { from: route.params.get('from') || '', to: route.params.get('to') || '' }; const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value)); const result = await api(`/me/tracks/stats${query.toString() ? `?${query}` : ''}`); content = statsView(dataOf(result), filters); title = 'Статистика'; }
         else if (route.path === 'pricing') { if (!state.plans.length) state.plans = itemsOf(await api('/billing/plans', { auth: false })); content = pricingView(state.plans); title = 'Тарифы'; }
         else if (route.path === 'billing') { requireAuth(); const result = await api('/billing/me'); state.billing = dataOf(result); content = billingView(state.billing); title = 'Подписка'; }
-        else if (route.path === 'profile') { requireAuth(); const result = await api('/me'); state.user = dataOf(result); localStorage.setItem(USER_KEY, JSON.stringify(state.user)); content = profileView(); title = 'Профиль'; }
+        else if (route.path === 'profile') { requireAuth(); const result = await api('/me'); state.user = dataOf(result); localStorage.setItem(USER_KEY, JSON.stringify(state.user)); const page = key => Math.max(1, Number.parseInt(route.params.get(key), 10) || 1); const [likes, following, lists] = await Promise.all([api(`/users/${state.user.id}/likes?page=${page('tracks_page')}`), api(`/me/following?page=${page('artists_page')}`), api(`/me/liked-playlists?page=${page('playlists_page')}`)]); content = profileView(likes, following, lists, route.params); title = 'Профиль'; }
         else { go(state.token ? 'tracks' : 'login'); return; }
         root.innerHTML = shell(content, title); bindEvents();
     } catch (error) {
@@ -270,7 +247,7 @@ async function loadTracks(params = new URLSearchParams()) {
 }
 async function checkLiked(trackId) {
     if (!state.token || !state.user) return false;
-    try { return itemsOf(await api(`/users/${state.user.id}/likes`)).some(track => String(track.id) === String(trackId)); } catch { return false; }
+    try { return Boolean((await api(`/users/${state.user.id}/likes/${trackId}`)).liked); } catch { return false; }
 }
 function applyErrors(form, error) { Object.entries(error.errors || {}).forEach(([field, messages]) => { const node = form.querySelector(`[data-error="${field}"]`); if (node) node.textContent = messages[0] || ''; }); const message = form.querySelector('[data-form-message]'); if (message) { message.textContent = readError(error); message.classList.add('is-error'); } }
 function validate(form, fields) { let valid = true; fields.forEach(field => { const input = form.elements[field]; const node = form.querySelector(`[data-error="${field}"]`); if (!input || !node) return; if (!input.value || (input.type === 'file' && !input.files.length)) { node.textContent = 'Заполните поле.'; valid = false; } else node.textContent = ''; }); return valid; }
@@ -288,7 +265,7 @@ function bindEvents() {
     document.querySelectorAll('[data-action="billing-cancel"]').forEach(btn => btn.addEventListener('click', () => billingAction('cancel')));
     document.querySelectorAll('[data-action="billing-resume"]').forEach(btn => btn.addEventListener('click', () => billingAction('resume')));
     document.querySelectorAll('[data-action="page"]').forEach(btn => btn.addEventListener('click', () => { if (!btn.disabled) go(`tracks?page=${Number(btn.dataset.page)}`); }));
-    document.querySelectorAll('[data-action="play"]').forEach(btn => btn.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); registerPlay(btn.dataset.id).then(() => notify('Прослушивание засчитано', 'success')).catch(error => notify(readError(error), 'error')); }));
+    document.querySelectorAll('[data-action="play"]').forEach(btn => btn.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); playTrack(btn.dataset.id).catch(() => notify('Не удалось воспроизвести трек.', 'error')); }));
     document.querySelectorAll('[data-action="like"]').forEach(btn => btn.addEventListener('click', () => toggleLike(btn)));
     document.querySelectorAll('[data-action="follow"]').forEach(btn => btn.addEventListener('click', () => toggleFollow(btn)));
     document.querySelectorAll('[data-action="delete-track"]').forEach(btn => btn.addEventListener('click', () => deleteTrack(btn.dataset.id)));
@@ -300,10 +277,14 @@ function bindEvents() {
     document.querySelectorAll('[data-action="delete-genre"]').forEach(btn => btn.addEventListener('click', () => deleteGenre(btn.dataset.id)));
     document.querySelectorAll('[data-action="edit-genre"]').forEach(btn => btn.addEventListener('click', () => editGenre(btn.dataset.id, btn.dataset.name)));
     document.querySelectorAll('[data-action="unblock-user"]').forEach(btn => btn.addEventListener('click', () => blockUser(false)));
-    document.querySelectorAll('[data-track-audio]').forEach(audio => audio.addEventListener('play', () => { if (!audio.dataset.counted) { audio.dataset.counted = 'true'; registerPlay(audio.dataset.track).catch(() => {}); } }));
+    document.querySelectorAll('[data-track-audio]').forEach(audio => audio.addEventListener('playing', () => { player.pause(); registerPlay(audio.dataset.track).catch(() => {}); }));
     const authForm = document.querySelector('#auth-form'); if (authForm) authForm.addEventListener('submit', submitAuth);
     const filterForm = document.querySelector('#filter-form'); if (filterForm) filterForm.addEventListener('submit', submitFilters);
-    const trackForm = document.querySelector('#track-form'); if (trackForm) trackForm.addEventListener('submit', submitTrack);
+    const trackForm = document.querySelector('#track-form'); if (trackForm) { trackForm.addEventListener('submit', submitTrack); trackForm.elements.audio?.addEventListener('change', () => inspectAudio(trackForm)); }
+    const searchForm = document.querySelector('#playlist-search-form'); if (searchForm) searchForm.addEventListener('submit', e => { e.preventDefault(); go(`playlists/${searchForm.dataset.id}/search?${new URLSearchParams({q:searchForm.elements.q.value.trim(),page:1})}`); });
+    const discoverForm = document.querySelector('#playlist-discover-form'); if (discoverForm) discoverForm.addEventListener('submit', e => { e.preventDefault(); go(`playlists/discover?${new URLSearchParams({q:discoverForm.elements.q.value.trim(),page:1})}`); });
+    document.querySelectorAll('[data-action="add-search-track"]').forEach(btn => btn.addEventListener('click', async () => { try { await api(`/playlists/${btn.dataset.playlist}/tracks`, {method:'POST', body:{track_id:Number(btn.dataset.track)}}); btn.disabled = true; btn.textContent = '✓ Уже в плейлисте'; notify('Трек добавлен', 'success'); } catch (e) { notify(readError(e), 'error'); } }));
+    document.querySelectorAll('[data-action="like-playlist"]').forEach(btn => btn.addEventListener('click', async () => { try { const liked = btn.dataset.liked === 'true'; await api(`/playlists/${btn.dataset.id}/like`, {method: liked ? 'DELETE' : 'PUT'}); btn.dataset.liked = String(!liked); btn.textContent = liked ? '♡ В избранное' : '♥ Убрать из избранного'; } catch (e) { notify(readError(e), 'error'); } }));
     const commentForm = document.querySelector('#comment-form'); if (commentForm) commentForm.addEventListener('submit', submitComment);
     const profileForm = document.querySelector('#profile-form'); if (profileForm) profileForm.addEventListener('submit', submitProfile);
     const playlistCreate = document.querySelector('#playlist-create-form'); if (playlistCreate) playlistCreate.addEventListener('submit', createPlaylist);
@@ -365,16 +346,37 @@ async function submitFilters(event) { event.preventDefault(); const data = new F
 async function submitTrack(event) {
     event.preventDefault();
     const form = event.currentTarget; const editId = form.dataset.editId;
-    const fields = ['title', 'genre_id', 'duration']; if (!editId) fields.push('audio');
+    const fields = ['title', 'genre_id']; if (!editId) fields.push('audio');
     if (!validate(form, fields)) return;
+    if (!editId && form.dataset.durationState === 'loading') { applyErrors(form, new ApiError('Дождитесь определения длительности.', 422)); return; }
+    if (!editId && form.dataset.durationState === 'invalid') { applyErrors(form, new ApiError('Длительность превышает допустимый или тарифный лимит.', 422)); return; }
+    const submit = form.querySelector('[type=submit]'); submit.disabled = true;
     try {
         let result;
-        if (editId) result = await api(`/tracks/${editId}`, { method: 'PATCH', body: { title: form.elements.title.value, genre_id: form.elements.genre_id.value, duration: form.elements.duration.value, description: form.elements.description.value || null } });
+        if (editId) result = await api(`/tracks/${editId}`, { method: 'PATCH', body: { title: form.elements.title.value, genre_id: form.elements.genre_id.value, description: form.elements.description.value || null } });
         else result = await uploadTrackWithProgress(form);
-        const track = dataOf(result); notify(editId ? 'Изменения сохранены и отправлены на модерацию' : 'Трек отправлен на модерацию', 'success'); go(`tracks/${track.id}`);
-    } catch (error) { applyErrors(form, error); }
+        const track = dataOf(result); if (editId) { notify('Изменения сохранены', 'success'); go(`tracks/${track.id}`); } else go('upload-success');
+    } catch (error) { applyErrors(form, error); } finally { submit.disabled = false; }
 }
 
+function inspectAudio(form) {
+    const file = form.elements.audio.files[0]; const display = form.querySelector('[data-duration-display]');
+    if (!file) { form.dataset.durationState = ''; display.textContent = 'Выберите аудиофайл'; return; }
+    form.dataset.durationState = 'loading'; display.textContent = 'Определяем длительность…';
+    const objectUrl = URL.createObjectURL(file); const probe = new Audio();
+    const cleanup = () => { probe.removeAttribute('src'); probe.load(); URL.revokeObjectURL(objectUrl); };
+    probe.onloadedmetadata = () => {
+        if (form.elements.audio.files[0] !== file) { cleanup(); return; }
+        const duration = Math.ceil(probe.duration); const usage = state.billing?.usage;
+        const exceedsTrack = !Number.isFinite(duration) || duration <= 0 || duration > 36000;
+        const exceedsPlan = usage && usage.limit_seconds != null && Number(usage.used_seconds) + duration > Number(usage.limit_seconds);
+        form.dataset.durationState = exceedsTrack || exceedsPlan ? 'invalid' : 'ready';
+        display.textContent = exceedsTrack ? 'Трек должен длиться не более 10 часов.' : exceedsPlan ? `Длительность ${formatDuration(duration)} превышает оставшийся лимит тарифа.` : `${formatDuration(duration)} · точную длительность проверит сервер`;
+        cleanup();
+    };
+    probe.onerror = () => { if (form.elements.audio.files[0] === file) { form.dataset.durationState = 'unknown'; display.textContent = 'Браузер не определил длительность; её проверит сервер.'; } cleanup(); };
+    probe.src = objectUrl;
+}
 function uploadTrackWithProgress(form) {
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
@@ -405,9 +407,9 @@ async function toggleLike(button) { try { const id = button.dataset.id; const li
 async function toggleFollow(button) { const artistId = button.dataset.id; if (!artistId || !state.user) return; try { const following = button.dataset.following === 'true'; if (following) await api(`/users/${state.user.id}/following/${artistId}`, { method: 'DELETE' }); else await api(`/users/${state.user.id}/following/${artistId}`, { method: 'PUT' }); button.dataset.following = String(!following); button.textContent = !following ? '✓ Вы подписаны' : '＋ Подписаться'; notify(!following ? 'Подписка оформлена' : 'Подписка отменена', 'success'); } catch (error) { notify(readError(error), 'error'); } }
 async function submitComment(event) { event.preventDefault(); const form = event.currentTarget; try { await api(`/tracks/${state.currentTrack.id}/comments`, { method: 'POST', body: { body: form.elements.body.value } }); notify('Комментарий опубликован', 'success'); render(); } catch (error) { applyErrors(form, error); } }
 async function deleteComment(id) { if (!window.confirm('Удалить комментарий?')) return; try { await api(`/comments/${id}`, { method: 'DELETE' }); notify('Комментарий удалён', 'success'); render(); } catch (error) { notify(readError(error), 'error'); } }
-async function submitProfile(event) { event.preventDefault(); const form = event.currentTarget; try { const result = await api('/me', { method: 'PATCH', body: { name: form.elements.name.value, bio: form.elements.bio.value || null, avatar_path: form.elements.avatar_path.value || null } }); state.user = dataOf(result); localStorage.setItem(USER_KEY, JSON.stringify(state.user)); notify('Профиль обновлён', 'success'); render(); } catch (error) { applyErrors(form, error); } }
+async function submitProfile(event) { event.preventDefault(); const form = event.currentTarget; try { if (form.elements.avatar.files[0]) { const data = new FormData(); data.append('avatar', form.elements.avatar.files[0]); const uploaded = await api('/me/avatar', {method:'POST',body:data}); state.user = dataOf(uploaded); localStorage.setItem(USER_KEY, JSON.stringify(state.user)); } const result = await api('/me', { method: 'PATCH', body: { name: form.elements.name.value, bio: form.elements.bio.value || null } }); state.user = dataOf(result); localStorage.setItem(USER_KEY, JSON.stringify(state.user)); notify('Профиль обновлён', 'success'); render(); } catch (error) { applyErrors(form, error); } }
 async function createPlaylist(event) { event.preventDefault(); const form = event.currentTarget; try { const result = await api('/playlists', { method: 'POST', body: { title: form.elements.title.value } }); notify('Плейлист создан', 'success'); go(`playlists/${dataOf(result).id}`); } catch (error) { applyErrors(form, error); } }
-async function editPlaylist(event) { event.preventDefault(); const form = event.currentTarget; try { await api(`/playlists/${form.dataset.id}`, { method: 'PATCH', body: { title: form.elements.title.value, description: form.elements.description.value || null } }); notify('Плейлист обновлён', 'success'); render(); } catch (error) { applyErrors(form, error); } }
+async function editPlaylist(event) { event.preventDefault(); const form = event.currentTarget; try { await api(`/playlists/${form.dataset.id}`, { method: 'PATCH', body: { title: form.elements.title.value, description: form.elements.description.value || null, is_public: form.elements.is_public.checked } }); notify('Плейлист обновлён', 'success'); render(); } catch (error) { applyErrors(form, error); } }
 async function deletePlaylist(id) { if (!window.confirm('Удалить плейлист?')) return; try { await api(`/playlists/${id}`, { method: 'DELETE' }); notify('Плейлист удалён', 'success'); go('playlists'); } catch (error) { notify(readError(error), 'error'); } }
 async function addPlaylistTrack(event) { event.preventDefault(); const form = event.currentTarget; if (!form.elements.track_id.value) return; try { await api(`/playlists/${form.dataset.id}/tracks`, { method: 'POST', body: { track_id: form.elements.track_id.value } }); notify('Трек добавлен', 'success'); render(); } catch (error) { applyErrors(form, error); } }
 async function playlistRemove(playlistId, trackId) { try { await api(`/playlists/${playlistId}/tracks/${trackId}`, { method: 'DELETE' }); notify('Трек убран из плейлиста', 'success'); render(); } catch (error) { notify(readError(error), 'error'); } }
