@@ -180,3 +180,11 @@ input, select, textarea { width: 100%; border: 1px solid var(--line); border-rad
 .unlimited-line { display: flex; gap: 10px; align-items: center; margin-top: 45px; color: var(--lime); font-size: 14px; font-weight: 700; }
 @media (max-width: 980px) { .pricing-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.price-card:first-child { grid-column: 1 / -1; min-height: auto; }.price-card:first-child .feature-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .pricing-grid, .billing-layout { grid-template-columns: 1fr; }.price-card:first-child { grid-column: auto; }.price-card:first-child .feature-list { grid-template-columns: 1fr; }.price-card { min-height: 0; }.pricing-switch { width: 100%; }.cycle-button { flex: 1; padding: 0 8px; }.billing-card { min-height: 0; }.usage-foot { flex-direction: column; gap: 6px; } }
+
+/* Media, library and playlist discovery */
+.avatar-image { object-fit: cover; }
+.library-section { margin-top: 42px; }
+.library-actions { margin: 20px 0; }
+.visibility-label { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+.visibility-label input { width: auto; }
+.cover-art.has-image, .detail-cover.has-image { background-position: center; background-size: cover; }
