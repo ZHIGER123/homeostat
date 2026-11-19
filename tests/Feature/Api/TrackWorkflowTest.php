@@ -27,7 +27,7 @@ class TrackWorkflowTest extends TestCase
     private function uploadData(Genre $genre): array
     {
         return ['title' => 'Новый трек', 'genre_id' => $genre->id, 'duration' => 120,
-            'audio' => UploadedFile::fake()->create('song.mp3', 100, 'audio/mpeg')];
+            'audio' => \Tests\Support\TestAudio::wav()];
     }
 
     public function test_upload_moderation_catalog_and_stream_form_one_scenario(): void
