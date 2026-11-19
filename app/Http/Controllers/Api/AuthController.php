@@ -20,12 +20,9 @@ use Illuminate\Validation\Rule;
 
 class AuthController extends Controller
 {
-    public function register(RegisterRequest $request, CaptchaService $captcha): JsonResponse
+    public function register(RegisterRequest $request, CaptchaService $captcha, EmailOtpService $otp): JsonResponse
     {
-        $data = $request->validated();
-        if (! $captcha->verify($data['captcha_id'] ?? null, $data['captcha_answer'] ?? null, $data['turnstile_token'] ?? null, $request->ip())) return response()->json(['message' => 'Подтвердите, что вы не бот.', 'errors' => ['captcha_answer' => ['Проверка безопасности не пройдена. Обновите CAPTCHA и попробуйте снова.']]], 422);
-        $user = User::create(['name' => $data['name'], 'email' => $data['email'], 'password' => $data['password'], 'role' => UserRole::Listener, 'birth_date' => $data['birth_date'], 'age_confirmed_at' => now()]);
-        return response()->json(['user' => (new UserResource($user))->resolve($request), 'token' => $user->createToken('api')->plainTextToken], 201);
+        return $this->requestEmailCode($request, $captcha, $otp);
     }
 
     public function requestEmailCode(Request $request, CaptchaService $captcha, EmailOtpService $otp): JsonResponse
@@ -33,7 +30,7 @@ class AuthController extends Controller
         $data = $request->validate(['password' => ['required', 'string', 'min:8', 'max:128', 'confirmed'], 'name' => ['required', 'string', 'max:255'], 'email' => ['required', 'email', 'max:255'], 'birth_date' => ['required', 'date_format:Y-m-d', new MinimumAge(User::MIN_AGE)], 'role' => ['sometimes', Rule::in(['listener', 'artist'])], 'captcha_id' => ['nullable', 'string', 'max:80'], 'captcha_answer' => ['nullable', 'string', 'max:20'], 'turnstile_token' => ['nullable', 'string', 'max:2048']]);
         if (! $captcha->verify($data['captcha_id'] ?? null, $data['captcha_answer'] ?? null, $data['turnstile_token'] ?? null, $request->ip())) return response()->json(['message' => 'Проверка безопасности не пройдена.', 'errors' => ['captcha_answer' => ['Обновите CAPTCHA и попробуйте снова.']]], 422);
         $otp->requestCode($data['email'], $data['name'], UserRole::Listener->value, $data['birth_date'], Hash::make($data['password']));
-        return response()->json(['message' => 'Если адрес допустим, письмо с кодом отправлено.'], 202);
+        return response()->json(['message' => 'Код подтверждения отправлен на вашу почту.', 'verification_required' => true, 'expires_in' => (int) config('services.email_otp.ttl', 10) * 60, 'resend_after' => (int) config('services.email_otp.resend_seconds', 60)], 202);
     }
 
     public function verifyEmailCode(Request $request, EmailOtpService $otp): JsonResponse

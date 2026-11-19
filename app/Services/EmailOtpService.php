@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Mail\VerificationCodeMail;
 use App\Models\EmailVerificationCode;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
@@ -11,11 +12,23 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
+use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 
 class EmailOtpService
 {
     public function requestCode(string $email, string $name, string $role, ?string $birthDate = null, ?string $passwordHash = null): void
     {
+        Cache::lock($this->operationKey($email), 30)->block(3, function () use ($email, $name, $role, $birthDate, $passwordHash): void {
+            $this->sendCode($email, $name, $role, $birthDate, $passwordHash);
+        });
+    }
+
+    private function sendCode(string $email, string $name, string $role, ?string $birthDate, ?string $passwordHash): void
+    {
+        $transport = config('mail.mailers.'.config('mail.default').'.transport');
+        if (! app()->runningUnitTests() && ! in_array($transport, ['smtp', 'sendmail', 'ses', 'ses-v2', 'mailgun', 'postmark', 'resend'], true)) {
+            throw new ServiceUnavailableHttpException(null, 'Отправка писем не настроена. Администратору нужно подключить SMTP или почтовый сервис.');
+        }
         $email = $this->normalize($email);
         $cooldown = $this->cooldownKey($email);
         if (Cache::has($cooldown)) {
@@ -24,7 +37,7 @@ class EmailOtpService
 
         $code = (string) random_int(100000, 999999);
         EmailVerificationCode::where('email', $email)->whereNull('used_at')->update(['used_at' => now()]);
-        EmailVerificationCode::create([
+        $record = EmailVerificationCode::create([
             'email' => $email,
             'purpose' => 'registration',
             'code_hash' => Hash::make($code),
@@ -32,13 +45,25 @@ class EmailOtpService
             'expires_at' => now()->addMinutes((int) config('services.email_otp.ttl', 10)),
         ]);
 
-        Mail::raw("Ваш код Homeostat: {$code}\n\nКод действует 10 минут и может быть использован только один раз.", function ($message) use ($email): void {
-            $message->to($email)->subject('Код подтверждения Homeostat');
-        });
+        $ttl = (int) config('services.email_otp.ttl', 10);
+        try {
+            Mail::to($email)->send(new VerificationCodeMail($code, $ttl));
+        } catch (\Throwable $exception) {
+            $record->update(['used_at' => now()]);
+            report($exception);
+            throw new ServiceUnavailableHttpException(null, 'Не удалось отправить код. Попробуйте позже или сообщите администратору о проблеме с почтой.');
+        }
         Cache::put($cooldown, true, now()->addSeconds((int) config('services.email_otp.resend_seconds', 60)));
     }
 
     public function verifyCode(string $email, string $code, ?bool &$created = null): User
+    {
+        return Cache::lock($this->operationKey($email), 30)->block(3, function () use ($email, $code, &$created): User {
+            return $this->consumeCode($email, $code, $created);
+        });
+    }
+
+    private function consumeCode(string $email, string $code, ?bool &$created): User
     {
         $email = $this->normalize($email);
         $record = EmailVerificationCode::query()
@@ -68,6 +93,7 @@ class EmailOtpService
         $user = User::where('email', $email)->first();
         if ($user) {
             if ($user->is_blocked) throw new AccessDeniedHttpException('Пользователь заблокирован.');
+            if (! $user->email_verified_at) $user->forceFill(['email_verified_at' => now()])->save();
             return $user;
         }
         $payload = json_decode((string) $record->payload, true, 512, JSON_THROW_ON_ERROR);
@@ -85,6 +111,7 @@ class EmailOtpService
         return $user->refresh();
     }
 
+    private function operationKey(string $email): string { return 'homeostat:email-otp:operation:'.hash('sha256', $this->normalize($email)); }
     private function normalize(string $email): string { return Str::lower(trim($email)); }
     private function cooldownKey(string $email): string { return 'homeostat:email-otp:cooldown:'.hash('sha256', $email); }
 }

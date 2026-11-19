@@ -14,21 +14,32 @@ class AuthApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_registration_creates_listener_and_returns_token_without_password(): void
+    public function test_registration_sends_email_without_creating_an_account_or_token(): void
     {
+        \Illuminate\Support\Facades\Mail::fake();
         $challenge = $this->getJson('/api/v1/auth/captcha')->assertOk()->json();
         preg_match('/(\d+)\s*\+\s*(\d+)/u', $challenge['question'], $parts);
         $response = $this->postJson('/api/v1/register', ['name' => 'Новый', 'email' => 'new@example.com', 'password' => 'password1', 'password_confirmation' => 'password1', 'birth_date' => now()->subYears(20)->toDateString(), 'captcha_id' => $challenge['id'], 'captcha_answer' => (string) ((int) $parts[1] + (int) $parts[2])]);
-        $response->assertCreated()->assertJsonPath('user.role', 'listener')->assertJsonStructure(['user', 'token'])->assertJsonMissingPath('user.password');
-        $this->assertDatabaseHas('users', ['email' => 'new@example.com', 'role' => 'listener']);
-        $this->assertNotSame('password1', User::where('email', 'new@example.com')->firstOrFail()->password);
+        $response->assertStatus(202)->assertJsonPath('verification_required', true)->assertJsonMissingPath('token')->assertJsonMissingPath('user');
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\VerificationCodeMail::class, fn ($mail) => $mail->hasTo('new@example.com') && preg_match('/^\d{6}$/', $mail->code));
+        $this->assertDatabaseMissing('users', ['email' => 'new@example.com']);
+        $this->assertDatabaseHas('email_verification_codes', ['email' => 'new@example.com', 'purpose' => 'registration']);
+        $record = \App\Models\EmailVerificationCode::where('email', 'new@example.com')->firstOrFail();
+        $this->assertStringNotContainsString('password1', $record->payload);
+        $record->update(['code_hash' => \Illuminate\Support\Facades\Hash::make('123456')]);
+        $this->postJson('/api/v1/auth/email/verify-code', ['email' => 'new@example.com', 'code' => '123456'])->assertCreated()->assertJsonPath('user.role', 'listener')->assertJsonMissingPath('user.password');
+        $this->assertNotNull(User::where('email', 'new@example.com')->firstOrFail()->email_verified_at);
     }
 
     public function test_registration_cannot_select_artist_role(): void
     {
+        \Illuminate\Support\Facades\Mail::fake();
         $challenge = $this->getJson('/api/v1/auth/captcha')->assertOk()->json();
         preg_match('/(\d+)\s*\+\s*(\d+)/u', $challenge['question'], $parts);
-        $this->postJson('/api/v1/register', ['name' => 'Новый', 'email' => 'artist@example.com', 'password' => 'password1', 'password_confirmation' => 'password1', 'birth_date' => now()->subYears(20)->toDateString(), 'role' => 'artist', 'captcha_id' => $challenge['id'], 'captcha_answer' => (string) ((int) $parts[1] + (int) $parts[2])])->assertCreated()->assertJsonPath('user.role', 'listener');
+        $this->postJson('/api/v1/register', ['name' => 'Новый', 'email' => 'artist@example.com', 'password' => 'password1', 'password_confirmation' => 'password1', 'birth_date' => now()->subYears(20)->toDateString(), 'role' => 'artist', 'captcha_id' => $challenge['id'], 'captcha_answer' => (string) ((int) $parts[1] + (int) $parts[2])])->assertStatus(202);
+        $record = \App\Models\EmailVerificationCode::where('email', 'artist@example.com')->firstOrFail();
+        $this->assertSame('listener', json_decode($record->payload, true)['role']);
+        $this->assertDatabaseMissing('users', ['email' => 'artist@example.com']);
     }
 
     public function test_email_code_distinguishes_new_and_existing_accounts(): void

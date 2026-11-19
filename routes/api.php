@@ -26,8 +26,8 @@ Route::get('/health', function () { try { DB::select('select 1'); $database = 'o
 Route::prefix('v1')->name('v1.')->group(function () {
     Route::get('billing/plans', [BillingController::class, 'plans'])->name('billing.plans');
     Route::post('billing/webhook', [BillingController::class, 'webhook'])->name('billing.webhook');
-    Route::post('register', [AuthController::class, 'register'])->name('register');
-    Route::post('auth/register', [AuthController::class, 'register'])->name('auth.register');
+    Route::post('register', [AuthController::class, 'register'])->middleware('throttle:10,1')->name('register');
+    Route::post('auth/register', [AuthController::class, 'register'])->middleware('throttle:10,1')->name('auth.register');
     Route::get('auth/captcha', [CaptchaController::class, 'show'])->middleware('throttle:30,1')->name('auth.captcha');
     Route::post('auth/email/request-code', [AuthController::class, 'requestEmailCode'])->middleware('throttle:10,1')->name('auth.email.request-code');
     Route::post('auth/email/verify-code', [AuthController::class, 'verifyEmailCode'])->middleware('throttle:15,1')->name('auth.email.verify-code');
