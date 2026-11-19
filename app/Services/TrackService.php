@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\TrackStatus;
+use App\Enums\UserRole;
 use App\Exceptions\BusinessException;
 use App\Models\Track;
 use App\Models\User;
@@ -47,6 +48,7 @@ class TrackService
                 if ($audio === false) throw new \RuntimeException('Не удалось сохранить аудиофайл.');
                 $stored[] = ['local', $audio]; $cover = null;
                 if (isset($data['cover'])) { $cover = $data['cover']->store('covers', 'public'); if ($cover === false) throw new \RuntimeException('Не удалось сохранить обложку.'); $stored[] = ['public', $cover]; }
+                if ($artist->role === UserRole::Listener) $artist->update(['role' => UserRole::Artist]);
                 return Track::create(['user_id' => $artist->id, 'genre_id' => $data['genre_id'], 'title' => $data['title'], 'description' => $data['description'] ?? null, 'duration' => $data['duration'], 'audio_path' => $audio, 'cover_path' => $cover, 'status' => TrackStatus::Pending, 'plays_count' => 0]);
             });
         } catch (\Throwable $exception) { foreach ($stored as [$disk, $path]) Storage::disk($disk)->delete($path); throw $exception; }

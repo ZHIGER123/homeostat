@@ -16,6 +16,8 @@ class UpdateProfileRequest extends FormRequest
         return [
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'bio' => ['sometimes', 'nullable', 'string', 'max:1000'],
+            'social_links' => ['sometimes', 'array:website,youtube,telegram'],
+            'social_links.*' => ['nullable', 'string', 'url:http,https', 'max:255'],
             'avatar_path' => ['sometimes', 'nullable', 'string', 'max:255'],
         ];
     }

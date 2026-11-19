@@ -38,7 +38,7 @@ class EmailOtpService
         Cache::put($cooldown, true, now()->addSeconds((int) config('services.email_otp.resend_seconds', 60)));
     }
 
-    public function verifyCode(string $email, string $code): User
+    public function verifyCode(string $email, string $code, ?bool &$created = null): User
     {
         $email = $this->normalize($email);
         $record = EmailVerificationCode::query()
@@ -64,17 +64,19 @@ class EmailOtpService
         }
         $record->update(['used_at' => now()]);
 
+        $created = false;
         $user = User::where('email', $email)->first();
         if ($user) {
             if ($user->is_blocked) throw new AccessDeniedHttpException('Пользователь заблокирован.');
             return $user;
         }
         $payload = json_decode((string) $record->payload, true, 512, JSON_THROW_ON_ERROR);
+        $created = true;
         $user = User::create([
             'name' => $payload['name'] ?: Str::before($email, '@'),
             'email' => $email,
             'password' => Str::random(64),
-            'role' => $payload['role'] ?? 'listener',
+            'role' => 'listener',
         ]);
         $user->forceFill(['email_verified_at' => now()])->save();
 

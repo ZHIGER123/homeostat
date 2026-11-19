@@ -29,9 +29,7 @@ class SocialAuthController extends Controller
         $state = Str::random(64);
         Cache::put($this->stateKey($state), [
             'provider' => $provider,
-            'role' => $request->string('role')->value() === UserRole::Artist->value
-                ? UserRole::Artist->value
-                : UserRole::Listener->value,
+            'role' => UserRole::Listener->value,
         ], now()->addMinutes(10));
 
         $query = [
@@ -64,6 +62,7 @@ class SocialAuthController extends Controller
             Cache::put($this->exchangeKey($handle), [
                 'user' => (new UserResource($user))->resolve($request),
                 'token' => $user->createToken("oauth-{$provider}")->plainTextToken,
+                'new_account' => $user->wasRecentlyCreated,
             ], now()->addMinute());
 
             return redirect()->to($this->frontendUrl().'/?oauth='.$handle);
@@ -129,6 +128,7 @@ class SocialAuthController extends Controller
             ->first()
             ?? User::where('email', $profile['email'])->first();
 
+        $created = ! $user;
         if (! $user) {
             $user = User::create([
                 'name' => $profile['name'] ?: Str::before($profile['email'], '@'),
@@ -147,7 +147,9 @@ class SocialAuthController extends Controller
             ])->save();
         }
 
-        return $user->refresh();
+        $user->refresh();
+        $user->wasRecentlyCreated = $created;
+        return $user;
     }
 
     private function stateKey(string $state): string

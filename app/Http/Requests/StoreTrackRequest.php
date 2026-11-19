@@ -8,7 +8,7 @@ class StoreTrackRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user() && ($this->user()->isArtist() || $this->user()->isAdmin());
+        return $this->user() && ! $this->user()->is_blocked;
     }
 
     /**
