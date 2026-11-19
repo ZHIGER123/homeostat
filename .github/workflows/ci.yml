@@ -9,20 +9,22 @@ on:
 permissions:
   contents: read
 
+env:
+  APP_ENV: testing
+  APP_DEBUG: false
+  APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+  DB_CONNECTION: sqlite
+  DB_DATABASE: ':memory:'
+  CACHE_STORE: array
+  SESSION_DRIVER: array
+  QUEUE_CONNECTION: sync
+  MAIL_MAILER: array
+  FILESYSTEM_DISK: local
+
 jobs:
-  test-and-build:
+  visibility-regression:
+    name: 404 visibility regression
     runs-on: ubuntu-latest
-    env:
-      APP_ENV: testing
-      APP_DEBUG: false
-      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
-      DB_CONNECTION: sqlite
-      DB_DATABASE: ':memory:'
-      CACHE_STORE: array
-      SESSION_DRIVER: array
-      QUEUE_CONNECTION: sync
-      MAIL_MAILER: array
-      FILESYSTEM_DISK: local
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,7 +33,28 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: mbstring, fileinfo, curl, openssl, pdo_sqlite, sqlite3
+          extensions: mbstring, pdo_sqlite, sqlite3
+          coverage: none
+          tools: composer:v2
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Run upload visibility regression test
+        run: php artisan test --filter=TrackVisibilityApiTest --no-interaction
+
+  php-tests:
+    name: Laravel test suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo_sqlite, sqlite3
           coverage: none
           tools: composer:v2
 
@@ -40,6 +63,13 @@ jobs:
 
       - name: Run Laravel tests
         run: php artisan test --no-interaction
+
+  frontend-build:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
