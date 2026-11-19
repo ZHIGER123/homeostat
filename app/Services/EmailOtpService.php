@@ -5,10 +5,10 @@ namespace App\Services;
 use App\Models\EmailVerificationCode;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 
@@ -23,8 +23,9 @@ class EmailOtpService
 
     private function sendCode(string $email, string $name, string $role, ?string $birthDate, ?string $passwordHash): void
     {
-        app(RegistrationMailService::class)->assertConfigured();
         $email = $this->normalize($email);
+        $this->assertEmailAvailable($email);
+        app(RegistrationMailService::class)->assertConfigured();
         $cooldown = $this->cooldownKey($email);
         if (Cache::has($cooldown)) {
             throw new TooManyRequestsHttpException(60, 'Повторно запросить код можно через минуту.');
@@ -61,6 +62,8 @@ class EmailOtpService
     private function consumeCode(string $email, string $code, ?bool &$created): User
     {
         $email = $this->normalize($email);
+        // Registration codes must never become a passwordless login for an existing account.
+        $this->assertEmailAvailable($email);
         $record = EmailVerificationCode::query()
             ->where('email', $email)
             ->where('purpose', 'registration')
@@ -85,25 +88,37 @@ class EmailOtpService
         $record->update(['used_at' => now()]);
 
         $created = false;
-        $user = User::where('email', $email)->first();
-        if ($user) {
-            if ($user->is_blocked) throw new AccessDeniedHttpException('Пользователь заблокирован.');
-            if (! $user->email_verified_at) $user->forceFill(['email_verified_at' => now()])->save();
-            return $user;
-        }
         $payload = json_decode((string) $record->payload, true, 512, JSON_THROW_ON_ERROR);
         \Illuminate\Support\Facades\Validator::make($payload, ['birth_date' => ['required', 'date_format:Y-m-d', new \App\Rules\MinimumAge(User::MIN_AGE)]])->validate();
-        $created = true;
-        $user = User::create([
-            'name' => $payload['name'] ?: Str::before($email, '@'),
-            'email' => $email,
-            'password' => $payload['password_hash'] ?? Str::random(64),
-            'role' => 'listener',
-            'birth_date' => $payload['birth_date'] ?? null,
-        ]);
+        try {
+            $user = User::create([
+                'name' => $payload['name'] ?: Str::before($email, '@'),
+                'email' => $email,
+                'password' => $payload['password_hash'] ?? Str::random(64),
+                'role' => 'listener',
+                'birth_date' => $payload['birth_date'] ?? null,
+            ]);
+        } catch (UniqueConstraintViolationException $exception) {
+            // The database unique index remains the last line of defence against a race.
+            throw ValidationException::withMessages(['email' => $this->duplicateEmailMessage()]);
+        }
         $user->forceFill(['email_verified_at' => now(), 'age_confirmed_at' => now()])->save();
+        $created = true;
 
         return $user->refresh();
+    }
+
+    private function assertEmailAvailable(string $email): void
+    {
+        // LOWER also covers legacy mixed-case rows on case-sensitive test databases.
+        if (User::whereRaw('LOWER(email) = ?', [$email])->exists()) {
+            throw ValidationException::withMessages(['email' => $this->duplicateEmailMessage()]);
+        }
+    }
+
+    private function duplicateEmailMessage(): string
+    {
+        return 'Этот email уже зарегистрирован. Войдите в существующий аккаунт.';
     }
 
     private function operationKey(string $email): string { return 'homeostat:email-otp:operation:'.hash('sha256', $this->normalize($email)); }

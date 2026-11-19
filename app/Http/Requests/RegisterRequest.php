@@ -9,6 +9,18 @@ use Illuminate\Validation\Rule;
 
 class RegisterRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        if (is_string($this->input('email'))) {
+            $this->merge(['email' => strtolower(trim($this->input('email')))]);
+        }
+    }
+
+    public function messages(): array
+    {
+        return ['email.unique' => 'Этот email уже зарегистрирован. Войдите в существующий аккаунт.'];
+    }
+
     public function authorize(): bool { return true; }
     public function rules(): array
     {

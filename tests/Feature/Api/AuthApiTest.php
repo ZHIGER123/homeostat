@@ -42,14 +42,14 @@ class AuthApiTest extends TestCase
         $this->assertDatabaseMissing('users', ['email' => 'artist@example.com']);
     }
 
-    public function test_email_code_distinguishes_new_and_existing_accounts(): void
+    public function test_email_registration_creates_new_accounts_and_rejects_existing_accounts(): void
     {
         foreach (['new-otp@example.com', 'existing-otp@example.com'] as $email) {
             \App\Models\EmailVerificationCode::create(['email' => $email, 'purpose' => 'registration', 'code_hash' => \Illuminate\Support\Facades\Hash::make('123456'), 'payload' => json_encode(['name' => 'OTP', 'role' => 'artist', 'birth_date' => '2000-01-01']), 'expires_at' => now()->addMinutes(10)]);
         }
         User::factory()->listener()->create(['email' => 'existing-otp@example.com']);
         $this->postJson('/api/v1/auth/email/verify-code', ['email' => 'new-otp@example.com', 'code' => '123456'])->assertCreated()->assertJsonPath('new_account', true)->assertJsonPath('user.role', 'listener');
-        $this->postJson('/api/v1/auth/email/verify-code', ['email' => 'existing-otp@example.com', 'code' => '123456'])->assertCreated()->assertJsonPath('new_account', false);
+        $this->postJson('/api/v1/auth/email/verify-code', ['email' => 'existing-otp@example.com', 'code' => '123456'])->assertUnprocessable()->assertJsonValidationErrors('email')->assertJsonMissingPath('token');
     }
 
     public function test_registration_rejects_admin_role_and_duplicate_email(): void

@@ -83,4 +83,67 @@ class EmailRegistrationTest extends TestCase
         $this->assertNotNull(EmailVerificationCode::where('email', 'verify@example.com')->firstOrFail()->used_at);
         $this->assertDatabaseMissing('users', ['email' => 'verify@example.com']);
     }
+
+    public function test_all_registration_routes_reject_an_existing_email_without_sending_mail(): void
+    {
+        Mail::fake();
+        $user = User::factory()->listener()->create(['email' => 'verify@example.com']);
+        $original = $user->getRawOriginal();
+        foreach (['/api/v1/register', '/api/v1/auth/register', '/api/v1/auth/email/request-code'] as $route) {
+            $data = $this->data();
+            $data['email'] = '  VERIFY@EXAMPLE.COM  ';
+            $this->postJson($route, $data)->assertUnprocessable()
+                ->assertJsonValidationErrors('email')->assertJsonMissingPath('token');
+        }
+        Mail::assertNothingSent();
+        $this->assertDatabaseCount('users', 1);
+        $this->assertDatabaseCount('email_verification_codes', 0);
+        $this->assertSame($original, $user->fresh()->getRawOriginal());
+        $this->assertSame(0, $user->tokens()->count());
+    }
+
+    public function test_old_registration_code_cannot_sign_in_or_modify_an_existing_account(): void
+    {
+        foreach (['listener', 'admin'] as $role) {
+            $user = User::factory()->create(['email' => $role.'@example.com', 'role' => $role,
+                'email_verified_at' => null, 'is_blocked' => $role === 'listener']);
+            $original = $user->getRawOriginal();
+            EmailVerificationCode::create(['email' => $user->email, 'purpose' => 'registration',
+                'code_hash' => Hash::make('123456'), 'payload' => '{}',
+                'expires_at' => now()->addMinutes(10)]);
+            $this->postJson('/api/v1/auth/email/verify-code', ['email' => strtoupper($user->email), 'code' => '123456'])
+                ->assertUnprocessable()->assertJsonValidationErrors('email')->assertJsonMissingPath('token');
+            $this->assertSame($original, $user->fresh()->getRawOriginal());
+            $this->assertSame(0, $user->tokens()->count());
+        }
+        $this->assertDatabaseCount('users', 2);
+    }
+
+    public function test_service_rejects_legacy_mixed_case_email_before_mail_configuration(): void
+    {
+        Mail::fake();
+        User::factory()->create(['email' => 'Legacy@Example.com']);
+        try {
+            app(EmailOtpService::class)->requestCode(' legacy@example.com ', 'Повтор', 'listener', '2000-01-01');
+            $this->fail('A duplicate email must be rejected by the service itself.');
+        } catch (\Illuminate\Validation\ValidationException $exception) {
+            $this->assertArrayHasKey('email', $exception->errors());
+        }
+        Mail::assertNothingSent();
+        $this->assertDatabaseCount('email_verification_codes', 0);
+    }
+
+    public function test_resend_token_cannot_bypass_account_created_after_code_request(): void
+    {
+        Mail::fake();
+        $data = $this->data();
+        $response = $this->postJson('/api/v1/auth/email/request-code', $data)->assertStatus(202);
+        User::factory()->create(['email' => $data['email']]);
+        unset($data['captcha_id'], $data['captcha_answer']);
+        $data['resend_token'] = $response->json('resend_token');
+        $this->postJson('/api/v1/auth/email/request-code', $data)->assertUnprocessable()
+            ->assertJsonValidationErrors('email')->assertJsonMissingPath('token');
+        Mail::assertSent(VerificationCodeMail::class, 1);
+        $this->assertDatabaseCount('users', 1);
+    }
 }
