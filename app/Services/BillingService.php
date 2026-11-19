@@ -19,25 +19,32 @@ class BillingService
 
     public function checkout(User $user, string $plan, string $cycle = 'monthly'): array
     {
-        $this->assertPlan($plan, $cycle);
-        if ($user->subscription?->active() && $user->subscription?->provider_subscription_id) abort(409, 'У вас уже есть активная подписка. Для изменения откройте управление оплатой, чтобы избежать повторного списания.');
-        $price = config("plans.{$plan}.price_id_{$cycle}");
-        if (! config('services.stripe.secret') || ! $price) throw new ServiceUnavailableHttpException(null, 'Платёжный провайдер ещё не настроен.');
-
-        $response = Http::asForm()->withBasicAuth(config('services.stripe.secret'), '')->post('https://api.stripe.com/v1/checkout/sessions', [
-            'mode' => 'subscription', 'line_items[0][price]' => $price, 'line_items[0][quantity]' => 1,
-            'success_url' => $this->frontendUrl().'/?billing=success&session_id={CHECKOUT_SESSION_ID}',
-            'cancel_url' => $this->frontendUrl().'/?billing=cancelled', 'customer_email' => $user->email,
-            'allow_promotion_codes' => 'true', 'billing_address_collection' => 'auto',
-            'metadata[user_id]' => (string) $user->id, 'metadata[plan]' => $plan,
-            'subscription_data[metadata][user_id]' => (string) $user->id, 'subscription_data[metadata][plan]' => $plan,
-        ])->throw()->json();
-
-        return ['checkout_url' => $response['url'], 'session_id' => $response['id'], 'plan' => $plan, 'cycle' => $cycle];
+        return DB::transaction(function () use ($user, $plan, $cycle) {
+            $user = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $this->assertArtist($user);
+            $this->assertPlan($plan, $cycle);
+            if ($user->subscription?->provider_subscription_id && ! in_array($user->subscription->status, ['canceled', 'incomplete_expired'], true)) abort(409, 'У вас уже есть активная подписка. Для изменения откройте управление оплатой, чтобы избежать повторного списания.');
+            $price = config("plans.{$plan}.price_id_{$cycle}");
+            if (! config('services.stripe.secret') || ! $price) throw new ServiceUnavailableHttpException(null, 'Платёжный провайдер ещё не настроен.');
+    
+            $response = Http::timeout(15)->asForm()->withBasicAuth(config('services.stripe.secret'), '')->post('https://api.stripe.com/v1/checkout/sessions', [
+                'mode' => 'subscription', 'line_items[0][price]' => $price, 'line_items[0][quantity]' => 1,
+                'success_url' => $this->frontendUrl().'/?billing=success&session_id={CHECKOUT_SESSION_ID}',
+                'cancel_url' => $this->frontendUrl().'/?billing=cancelled', 'customer_email' => $user->email,
+                'allow_promotion_codes' => 'true', 'billing_address_collection' => 'auto',
+                'metadata[user_id]' => (string) $user->id, 'metadata[plan]' => $plan,
+                'subscription_data[metadata][user_id]' => (string) $user->id, 'subscription_data[metadata][plan]' => $plan,
+            ])->throw()->json();
+    
+            DB::table('billing_checkout_sessions')->insert(['user_id' => $user->id, 'session_id' => $response['id'], 'created_at' => now()]);
+    
+            return ['checkout_url' => $response['url'], 'session_id' => $response['id'], 'plan' => $plan, 'cycle' => $cycle];
+        });
     }
 
     public function portal(User $user): array
     {
+        $this->assertArtist($user);
         $customer = $user->subscription?->provider_customer_id;
         if (! $customer || ! config('services.stripe.secret')) throw new ServiceUnavailableHttpException(null, 'Платёжный профиль ещё не создан.');
         $response = Http::asForm()->withBasicAuth(config('services.stripe.secret'), '')->post('https://api.stripe.com/v1/billing_portal/sessions', ['customer' => $customer, 'return_url' => $this->frontendUrl().'/#billing'])->throw()->json();
@@ -47,7 +54,7 @@ class BillingService
     public function cancel(User $user): ?Subscription
     {
         $subscription = $user->subscription;
-        if (! $subscription?->provider_subscription_id || ! $subscription->active()) return $subscription;
+        if (! $subscription?->provider_subscription_id || in_array($subscription->status, ['canceled', 'incomplete_expired'], true)) return $subscription;
         if (! config('services.stripe.secret')) throw new ServiceUnavailableHttpException(null, 'Stripe не настроен.');
         // Do not change local access until Stripe confirms immediate cancellation.
         $result = Http::timeout(15)->withBasicAuth(config('services.stripe.secret'), '')->delete('https://api.stripe.com/v1/subscriptions/'.rawurlencode($subscription->provider_subscription_id))->throw()->json();
@@ -66,12 +73,59 @@ class BillingService
 
     public function resume(User $user): ?Subscription
     {
+        $this->assertArtist($user);
         $subscription = $user->subscription;
         if (! $subscription?->provider_subscription_id || ! $subscription->active()) abort(409, 'Отменённую подписку нельзя возобновить. Выберите тариф заново.');
         if (! config('services.stripe.secret')) throw new ServiceUnavailableHttpException(null, 'Stripe не настроен.');
         Http::asForm()->withBasicAuth(config('services.stripe.secret'), '')->post('https://api.stripe.com/v1/subscriptions/'.$subscription->provider_subscription_id, ['cancel_at_period_end' => 'false'])->throw();
         $subscription->update(['cancel_at_period_end' => false]);
         return $subscription->refresh();
+    }
+
+    public function cancelForAccountDeletion(User $user): void
+    {
+        // Remembered Checkout links must be expired too, otherwise they could charge after deletion.
+        $pending = DB::table('billing_checkout_sessions')->where('user_id', $user->id)->pluck('session_id');
+        $local = $user->subscription()->lockForUpdate()->first();
+        $needsCancellation = $local?->provider_subscription_id
+            && ! in_array($local->status, ['canceled', 'incomplete_expired'], true);
+        if ($pending->isEmpty() && ! $needsCancellation) return;
+        if (! config('services.stripe.secret')) throw new ServiceUnavailableHttpException(null,
+            'Для безопасного удаления аккаунта с оплатой требуется подключение Stripe.');
+        foreach ($pending as $id) {
+            $session = Http::timeout(15)->withBasicAuth(config('services.stripe.secret'), '')
+                ->get('https://api.stripe.com/v1/checkout/sessions/'.rawurlencode($id))->throw()->json();
+            abort_unless(($session['id'] ?? null) === $id
+                && (string) ($session['metadata']['user_id'] ?? '') === (string) $user->id,
+                502, 'Stripe не подтвердил принадлежность сессии оплаты.');
+            if (($session['status'] ?? '') === 'open') {
+                $expired = Http::timeout(15)->withBasicAuth(config('services.stripe.secret'), '')
+                    ->post('https://api.stripe.com/v1/checkout/sessions/'.rawurlencode($id).'/expire')->throw()->json();
+                abort_unless(($expired['id'] ?? null) === $id && ($expired['status'] ?? '') === 'expired', 502,
+                    'Stripe не подтвердил закрытие ссылки оплаты. Аккаунт не удалён.');
+            } elseif (($session['status'] ?? '') === 'complete' && is_string($session['subscription'] ?? null)) {
+                $this->cancelRemoteSubscription($session['subscription']);
+            } else {
+                abort_unless(($session['status'] ?? '') === 'expired', 502, 'Неизвестное состояние оплаты. Аккаунт не удалён.');
+            }
+        }
+        if ($needsCancellation) $this->cancelRemoteSubscription($local->provider_subscription_id);
+    }
+
+    private function cancelRemoteSubscription(string $id): void
+    {
+        $remote = $this->fetchSubscription($id);
+        abort_unless(($remote['id'] ?? null) === $id, 502, 'Stripe вернул другую подписку.');
+        if (in_array($remote['status'] ?? '', ['canceled', 'incomplete_expired'], true)) return;
+        $result = Http::timeout(15)->withBasicAuth(config('services.stripe.secret'), '')
+            ->delete('https://api.stripe.com/v1/subscriptions/'.rawurlencode($id))->throw()->json();
+        abort_unless(($result['id'] ?? null) === $id && ($result['status'] ?? null) === 'canceled',
+            502, 'Stripe не подтвердил отмену. Аккаунт не удалён.');
+    }
+
+    private function assertArtist(User $user): void
+    {
+        abort_unless($user->isArtist(), 403, 'Платные подписки доступны только пользователям с ролью «Артист».');
     }
 
     private function restoreFreeFeatures(User $user): void
@@ -99,6 +153,7 @@ class BillingService
     /** Verify with Stripe, never trust a browser redirect as proof of payment. */
     public function syncForUser(User $user, ?string $sessionId = null): void
     {
+        $this->assertArtist($user);
         $secret = config('services.stripe.secret');
         if (! $secret) throw new ServiceUnavailableHttpException(null, 'Stripe не настроен.');
         if ($sessionId) {
@@ -161,6 +216,7 @@ class BillingService
         $end = $subscription['current_period_end'] ?? ($item['current_period_end'] ?? null);
         DB::transaction(function () use ($user, $id, $customer, $subscription, $plan, $start, $end) {
             $owner = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            if (in_array($subscription['status'] ?? '', ['active', 'trialing'], true)) $this->assertArtist($owner);
             $existing = $owner->subscription()->lockForUpdate()->first();
             if ($existing && $existing->active() && $existing->provider_subscription_id && $existing->provider_subscription_id !== $id) abort(409, 'Найдены две разные подписки. Проверьте их в Stripe и не оформляйте оплату повторно.');
             $saved = $owner->subscription()->updateOrCreate([], ['provider' => 'stripe', 'provider_customer_id' => $customer, 'provider_subscription_id' => $id, 'plan' => $plan, 'status' => $subscription['status'] ?? 'incomplete', 'current_period_start' => $start ? now()->setTimestamp($start) : null, 'current_period_end' => $end ? now()->setTimestamp($end) : null, 'cancel_at_period_end' => (bool) ($subscription['cancel_at_period_end'] ?? false)]);
@@ -172,6 +228,7 @@ class BillingService
     private function syncCheckout(array $session, ?User $expectedUser = null): void
     {
         $user = $expectedUser ?: User::find($session['metadata']['user_id'] ?? null);
+        if (! $expectedUser && ! $user) return;
         abort_unless($user && (string) ($session['metadata']['user_id'] ?? '') === (string) $user->id, 403, 'Сессия оплаты не принадлежит этому аккаунту.');
         abort_unless(($session['mode'] ?? '') === 'subscription' && ($session['status'] ?? '') === 'complete' && in_array($session['payment_status'] ?? '', ['paid', 'no_payment_required'], true), 409, 'Stripe ещё не подтвердил оплату.');
         $subscription = $this->fetchSubscription($session['subscription'] ?? '');

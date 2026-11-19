@@ -243,6 +243,7 @@ function validate(form, fields) { let valid = true; fields.forEach(field => { co
 function bindEvents() {
     player.mount();
     bindAdminUsers();
+    bindAccountDeletion();
     const verificationForm = document.querySelector('#auth-form[data-mode="register"]');
     if (verificationForm) {
         const dialog = verificationForm.querySelector('[data-email-dialog]');
@@ -580,5 +581,39 @@ function bindAdminUsers() {
     document.querySelectorAll('[data-admin-user-form]').forEach(form => form.addEventListener('submit', async event => {
         event.preventDefault(); const btn = form.querySelector('[type=submit]'); btn.disabled = true;
         try { await api(`/admin/users/${form.dataset.adminUserForm}`, {method:'PATCH', body:Object.fromEntries(new FormData(form))}); notify('Пользователь обновлён', 'success'); await render(); } catch (e) { applyErrors(form,e); btn.disabled = false; }
+    }));
+}
+
+
+function bindAccountDeletion() {
+    const dialog = document.querySelector('[data-delete-account-dialog]');
+    const form = document.querySelector('#delete-account-form');
+    if (dialog && form) {
+        document.querySelector('[data-open-delete-account]').addEventListener('click', () => { form.reset(); form.querySelector('[data-form-message]').textContent = ''; dialog.showModal(); form.elements.password.focus(); });
+        document.querySelector('[data-close-delete-account]').addEventListener('click', () => { if (form.dataset.busy !== 'true') dialog.close(); });
+        dialog.addEventListener('cancel', e => { if (form.dataset.busy === 'true') e.preventDefault(); });
+        form.addEventListener('submit', async event => {
+            event.preventDefault();
+            if (form.dataset.busy === 'true' || !form.reportValidity()) return;
+            form.dataset.busy = 'true'; form.querySelectorAll('button').forEach(b => b.disabled = true);
+            form.querySelectorAll('[data-error], [data-form-message]').forEach(n => n.textContent = '');
+            try {
+                await api('/me', {method:'DELETE', body:Object.fromEntries(new FormData(form))});
+                dialog.close(); player.pause?.(); clearAuth(); state.billing = null; state.adminUsers = null;
+                state.currentTrack = null; state.list.items = []; go('login');
+            } catch (error) { applyErrors(form, error); }
+            finally { form.dataset.busy = 'false'; form.querySelectorAll('button').forEach(b => b.disabled = false); }
+        });
+    }
+    document.querySelectorAll('[data-delete-user]').forEach(button => button.addEventListener('click', async () => {
+        if (button.disabled) return;
+        const id = button.dataset.deleteUser;
+        const typed = window.prompt(`Удалить аккаунт «${button.dataset.userName}» #${id}, его треки и плейлисты навсегда? Подписка будет отменена без автоматического возврата денег. Для подтверждения введите ID: ${id}`);
+        if (typed === null) return;
+        if (typed.trim() !== id) { notify('ID не совпадает. Удаление отменено.', 'error'); return; }
+        button.disabled = true;
+        try { await api(`/admin/users/${id}`, {method:'DELETE', body:{confirmation_id:Number(id)}}); await render(); notify('Аккаунт удалён', 'success'); }
+        catch (error) { notify(readError(error), 'error'); }
+        finally { if (button.isConnected) button.disabled = false; }
     }));
 }

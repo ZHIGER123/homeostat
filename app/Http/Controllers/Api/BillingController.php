@@ -14,7 +14,7 @@ class BillingController extends Controller
     public function me(Request $request, UploadQuotaService $quota): JsonResponse
     {
         $user = $request->user()->load('subscription'); $subscription = $user->subscription;
-        return response()->json(['data' => ['plan' => $user->currentPlan(), 'status' => $subscription?->status ?? 'free', 'current_period_end' => $subscription?->current_period_end, 'cancel_at_period_end' => (bool) ($subscription?->cancel_at_period_end ?? false), 'usage' => $quota->usage($user)]]);
+        return response()->json(['data' => ['plan' => $user->currentPlan(), 'has_subscription' => (bool) $subscription?->provider_subscription_id, 'status' => $subscription?->status ?? 'free', 'current_period_end' => $subscription?->current_period_end, 'cancel_at_period_end' => (bool) ($subscription?->cancel_at_period_end ?? false), 'usage' => $quota->usage($user)]]);
     }
     public function checkout(Request $request, BillingService $billing): JsonResponse { $data = $request->validate(['plan' => ['required', 'string'], 'cycle' => ['sometimes', 'in:monthly,annual']]); return response()->json(['data' => $billing->checkout($request->user(), $data['plan'], $data['cycle'] ?? 'monthly')]); }
     public function sync(Request $request, BillingService $billing): JsonResponse { $data = $request->validate(['session_id' => ['nullable', 'string', 'regex:/^cs_(test|live)_[a-zA-Z0-9]+$/', 'max:255']]); $billing->syncForUser($request->user(), $data['session_id'] ?? null); return $this->me($request, app(UploadQuotaService::class)); }

@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\Admin\TrackModerationController;
 use App\Http\Controllers\Api\Admin\UserBlockController;
 use App\Http\Controllers\Api\Admin\UserManagementController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\ArtistFeatureController;
 use App\Http\Controllers\Api\BillingController;
 use App\Http\Controllers\Api\CaptchaController;
@@ -45,6 +46,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
     Route::middleware(['auth:sanctum', 'not_blocked'])->group(function () {
         Route::post('logout', [AuthController::class, 'logout'])->name('logout');
         Route::get('me', [AuthController::class, 'me'])->name('me');
+        Route::delete('me', [AccountController::class, 'destroy'])->middleware('throttle:5,1')->name('me.destroy');
         Route::post('me/avatar', [AuthController::class, 'uploadAvatar'])->name('me.avatar');
         Route::match(['put', 'patch'], 'me', [AuthController::class, 'updateProfile'])->name('me.update');
         Route::post('auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
@@ -82,6 +84,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
         Route::get('users', [UserManagementController::class, 'index'])->name('users.index');
         Route::get('users/{user}', [UserManagementController::class, 'show'])->name('users.show');
         Route::patch('users/{user}', [UserManagementController::class, 'update'])->name('users.update');
+        Route::delete('users/{user}', [UserManagementController::class, 'destroy'])->middleware('throttle:10,1')->name('users.destroy');
         Route::get('tracks', [TrackModerationController::class, 'index'])->name('tracks.index'); Route::patch('tracks/{track}/status', [TrackModerationController::class, 'updateStatus'])->name('tracks.status'); Route::put('users/{user}/block', [UserBlockController::class, 'store'])->name('users.block.store'); Route::delete('users/{user}/block', [UserBlockController::class, 'destroy'])->name('users.block.destroy'); });
     Route::middleware(['auth:sanctum', 'not_blocked', 'role:admin'])->group(function () { Route::apiResource('genres', GenreController::class)->only(['store', 'update', 'destroy']); });
 });

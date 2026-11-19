@@ -51,3 +51,14 @@
 .email-dialog-edit { min-height:44px; border:0; background:transparent; color:#ffac99; text-decoration:underline; cursor:pointer; }
 .email-dialog-note { color:#aaa19d; font-size:12px; line-height:1.6; }
 @media(max-width:480px) { .email-verification-content { padding:28px 22px 22px; gap:14px; }.email-verification-dialog h2 { font-size:25px; } }
+
+/* Explicit, accessible account-removal confirmation. */
+.account-danger-zone { margin-top: 28px; border: 1px solid #b94f494d; }
+.account-danger-zone p { max-width: 72ch; line-height: 1.65; }
+[data-delete-account-dialog] { width: min(480px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 26px; box-sizing: border-box; overflow-y: auto; border-radius: 20px; }
+[data-delete-account-dialog]::backdrop { background: #10131fba; backdrop-filter: blur(5px); }
+[data-delete-account-dialog] form { display: grid; gap: 18px; }
+[data-delete-account-dialog] label { display: grid; gap: 8px; }
+[data-delete-account-dialog] input { width: 100%; box-sizing: border-box; min-width: 0; }
+[data-delete-account-dialog] p { line-height: 1.6; }
+[data-delete-user] { margin-top: 18px; }

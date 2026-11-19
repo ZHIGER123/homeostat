@@ -21,7 +21,7 @@ class User extends Authenticatable
     protected function casts(): array { return ['email_verified_at' => 'datetime', 'password' => 'hashed', 'role' => UserRole::class, 'is_blocked' => 'boolean', 'social_links' => 'array', 'birth_date' => 'date', 'age_confirmed_at' => 'datetime']; }
     public function tracks(): HasMany { return $this->hasMany(Track::class); }
     public function subscription(): HasOne { return $this->hasOne(Subscription::class); }
-    public function currentPlan(): string { $subscription = $this->relationLoaded('subscription') ? $this->subscription : $this->subscription()->first(); return $subscription && $subscription->active() ? $subscription->plan : 'free'; }
+    public function currentPlan(): string { if (! $this->isArtist()) return 'free'; $subscription = $this->relationLoaded('subscription') ? $this->subscription : $this->subscription()->first(); return $subscription && $subscription->active() ? $subscription->plan : 'free'; }
     public function playlists(): HasMany { return $this->hasMany(Playlist::class); }
     public function comments(): HasMany { return $this->hasMany(Comment::class); }
     public function likes(): HasMany { return $this->hasMany(Like::class); }
