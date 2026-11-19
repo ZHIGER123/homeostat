@@ -142,7 +142,7 @@ function captchaMarkup() {
 function loginView(mode = 'login', error = '') {
     const register = mode === 'register';
     const fields = register
-        ? `<label>Имя<input name="name" autocomplete="name" placeholder="Как к тебе обращаться" required><span class="inline-error" data-error="name"></span></label><label>Email<input name="email" type="email" autocomplete="email" placeholder="you@example.com" required><span class="inline-error" data-error="email"></span></label>${birthDateMarkup()}<label>Пароль<input name="password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required><span class="inline-error" data-error="password"></span></label><label>Повторите пароль<input name="password_confirmation" type="password" autocomplete="new-password" required><span class="inline-error" data-error="password_confirmation"></span></label>${captchaMarkup()}<div class="email-code-actions"><button class="button button-light is-hidden" type="button" data-action="request-email-code">Отправить код повторно</button><span class="email-code-status" data-email-code-status aria-live="polite"></span><button class="button button-light is-hidden" type="button" data-edit-registration>Изменить данные</button></div><label class="is-hidden" data-email-code-field>Код из письма<input name="code" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 цифр"><span class="inline-error" data-error="code"></span></label>`
+        ? `<label>Имя<input name="name" autocomplete="name" placeholder="Как к тебе обращаться" required><span class="inline-error" data-error="name"></span></label><label>Email<input name="email" type="email" autocomplete="email" placeholder="you@example.com" required><span class="inline-error" data-error="email"></span></label>${birthDateMarkup()}<label>Пароль<input name="password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required><span class="inline-error" data-error="password"></span></label><label>Повторите пароль<input name="password_confirmation" type="password" autocomplete="new-password" required><span class="inline-error" data-error="password_confirmation"></span></label>${captchaMarkup()}<dialog class="email-verification-dialog" data-email-dialog aria-labelledby="email-verification-title" aria-describedby="email-verification-description"><div class="email-verification-content"><button type="button" class="email-dialog-close" data-close-email-dialog aria-label="Закрыть окно">×</button><span class="email-dialog-icon" aria-hidden="true">✉</span><span class="eyebrow">ПОСЛЕДНИЙ ШАГ</span><h2 id="email-verification-title">Подтвердите email</h2><p id="email-verification-description">Мы отправили код на <strong data-verification-email></strong></p><p class="email-code-status" data-email-code-status aria-live="polite"></p><label data-email-code-field for="email-verification-code">Код из письма<input id="email-verification-code" name="code" type="text" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" aria-describedby="email-code-error"><span id="email-code-error" class="inline-error" data-error="code" aria-live="polite"></span></label><p class="form-message" data-verification-message role="alert"></p><button class="button button-primary button-wide" type="button" data-confirm-email>Подтвердить и создать аккаунт</button><button class="button button-light button-wide" type="button" data-action="request-email-code">Отправить код повторно</button><button class="email-dialog-edit" type="button" data-edit-registration>Изменить email или данные</button><small class="email-dialog-note">Письма нет? Проверьте папку «Спам». Никому не сообщайте код.</small></div></dialog>`
         : `<label>Email<input name="email" type="email" autocomplete="email" placeholder="you@example.com" required><span class="inline-error" data-error="email"></span></label><label>Пароль<input name="password" type="password" autocomplete="current-password" placeholder="Минимум 8 символов" required><span class="inline-error" data-error="password"></span></label>`;
     return `<div class="auth-layout"><section class="auth-art"><div class="orb orb-one"></div><div class="orb orb-two"></div><span class="eyebrow">SOUND • STATE • HOME</span><h1>Найди звук,<br><em>который остаётся.</em></h1><p>Homeostat собирает музыку вокруг твоего состояния — от первой ноты до собственного плейлиста.</p><div class="wave-hero" aria-hidden="true">${Array.from({ length: 32 }, (_, i) => `<i style="--h:${20 + ((i * 17) % 76)}%"></i>`).join('')}</div><div class="auth-art-note">Создавай свою сцену. Слушай своё.</div></section><section class="auth-card-wrap"><div class="auth-card"><div class="auth-card-head"><span class="eyebrow">${register ? 'NEW ACCOUNT' : 'WELCOME BACK'}</span><h2>${register ? 'Создай свой профиль' : 'С возвращением'}</h2><p>${register ? 'Код подтверждения придёт на указанную почту.' : 'Войдите, чтобы продолжить слушать.'}</p></div><form id="auth-form" data-mode="${register ? 'register' : 'login'}" novalidate>${fields}${formMessage(error)}<button class="button button-primary button-wide" type="submit"><span>${register ? 'Зарегистрироваться' : 'Войти в Homeostat'}</span><b>→</b></button></form><div class="auth-switch">${register ? 'Уже есть аккаунт?' : 'Впервые здесь?'} <a href="#${register ? 'login' : 'register'}">${register ? 'Войти' : 'Создать профиль'}</a></div><p class="auth-legal">Homeostat — платформа 16+. Дата рождения запрашивается только при регистрации.</p></div></section></div>`;
 }
@@ -232,25 +232,29 @@ async function checkLiked(trackId) {
     if (!state.token || !state.user) return false;
     try { return Boolean((await api(`/users/${state.user.id}/likes/${trackId}`)).liked); } catch { return null; }
 }
-function applyErrors(form, error) { Object.entries(error.errors || {}).forEach(([field, messages]) => { const node = form.querySelector(`[data-error="${field}"]`); if (node) node.textContent = messages[0] || ''; }); const message = form.querySelector('[data-form-message]'); if (message) { message.textContent = readError(error); message.classList.add('is-error'); } }
+function applyErrors(form, error) { Object.entries(error.errors || {}).forEach(([field, messages]) => { const node = form.querySelector(`[data-error="${field}"]`); if (node) node.textContent = messages[0] || ''; }); const message = form.querySelector('[data-email-dialog][open] [data-verification-message]') || form.querySelector('[data-form-message]'); if (message) { message.textContent = readError(error); message.classList.add('is-error'); } }
 function validate(form, fields) { let valid = true; fields.forEach(field => { const input = form.elements[field]; const node = form.querySelector(`[data-error="${field}"]`); if (!input || !node) return; if (!input.value || (input.type === 'file' && !input.files.length)) { node.textContent = 'Заполните поле.'; valid = false; } else node.textContent = ''; }); return valid; }
 
 function bindEvents() {
     player.mount();
     bindAdminUsers();
-    document.querySelector('[data-edit-registration]')?.addEventListener('click', () => {
-        const form = document.querySelector('#auth-form');
-        if (form.dataset.busy === 'true') return;
-        delete form.dataset.codeRequested; delete form.dataset.codeEmail;
-        form.querySelectorAll('[readonly]').forEach(input => input.readOnly = false);
-        form.elements.code.value = '';
-        form.querySelector('[data-email-code-field]').classList.add('is-hidden');
-        form.querySelector('[data-email-code-status]').textContent = 'После изменения данных нажмите «Зарегистрироваться», чтобы получить новый код.';
-        form.querySelector('[type=submit] span').textContent = 'Зарегистрироваться';
-        form.querySelector('[data-action="request-email-code"]').classList.add('is-hidden');
-        form.querySelector('[data-edit-registration]').classList.add('is-hidden');
-        refreshCaptchaInForm(form).catch(error => applyErrors(form,error));
-    });
+    const verificationForm = document.querySelector('#auth-form[data-mode="register"]');
+    if (verificationForm) {
+        const dialog = verificationForm.querySelector('[data-email-dialog]');
+        verificationForm.querySelector('[data-close-email-dialog]').addEventListener('click', () => { if (verificationForm.dataset.busy !== 'true') dialog.close(); });
+        dialog.addEventListener('cancel', event => { if (verificationForm.dataset.busy === 'true') event.preventDefault(); });
+        verificationForm.querySelector('[data-confirm-email]').addEventListener('click', () => verificationForm.requestSubmit());
+        verificationForm.elements.code.addEventListener('input', () => { verificationForm.elements.code.value = verificationForm.elements.code.value.replace(/[^0-9]/g, '').slice(0, 6); });
+        verificationForm.querySelector('[data-edit-registration]').addEventListener('click', () => {
+            if (verificationForm.dataset.busy === 'true') return;
+            dialog.close(); delete verificationForm.dataset.codeRequested; delete verificationForm.dataset.codeEmail; delete verificationForm.dataset.resendToken;
+            verificationForm.querySelectorAll('[readonly]').forEach(input => input.readOnly = false);
+            verificationForm.elements.code.value = ''; clearRegistrationErrors(verificationForm);
+            verificationForm.querySelector('[type=submit] span').textContent = 'Зарегистрироваться';
+            verificationForm.elements.email.focus();
+            refreshCaptchaInForm(verificationForm).catch(error => applyErrors(verificationForm,error));
+        });
+    }
     document.querySelectorAll('[data-cover-dialog]').forEach(btn => btn.addEventListener('click', () => { const img = btn.querySelector('img'); if (!img?.getAttribute('src')) return; const dialog = document.createElement('dialog'); dialog.className = 'cover-dialog'; const close = document.createElement('button'); close.className = 'button button-light'; close.textContent = 'Закрыть'; close.addEventListener('click', () => dialog.close()); const full = img.cloneNode(); full.removeAttribute('data-moderation-cover'); full.alt = 'Обложка в полном размере'; dialog.append(close, full); document.body.append(dialog); dialog.addEventListener('close', () => dialog.remove(), {once:true}); dialog.showModal(); }));
     document.querySelectorAll('[data-preview-seek]').forEach(btn => btn.addEventListener('click', () => { const audio = document.querySelector(`[data-preview-audio="${btn.dataset.id}"]`); if (audio && Number.isFinite(audio.duration)) audio.currentTime = Math.max(0, Math.min(audio.duration, audio.currentTime + Number(btn.dataset.previewSeek))); }));
     document.querySelectorAll('[data-preview-audio]').forEach(audio => { audio.addEventListener('play', () => { document.querySelectorAll('[data-preview-audio]').forEach(other => { if (other !== audio) other.pause(); }); player.pause?.(); }); });
@@ -309,52 +313,77 @@ async function submitAuth(event) {
 }
 
 function clearRegistrationErrors(form) {
-    form.querySelectorAll('[data-error]').forEach(node => node.textContent = '');
-    const message = form.querySelector('[data-form-message]');
-    message.textContent = ''; message.classList.remove('is-error');
+    form.querySelectorAll('[data-error], [data-form-message], [data-verification-message]').forEach(node => { node.textContent = ''; node.classList.remove('is-error'); });
+}
+function openEmailVerification(form) {
+    const dialog = form.querySelector('[data-email-dialog]');
+    if (!dialog.open) dialog.showModal();
+    form.elements.code.focus();
+}
+function setRegistrationBusy(form, busy) {
+    form.dataset.busy = String(busy);
+    form.querySelectorAll('button').forEach(button => button.disabled = busy);
+    if (!busy) updateResendButton(form);
 }
 function updateResendButton(form) {
     const button = form.querySelector('[data-action="request-email-code"]');
     if (!button?.isConnected || form.dataset.codeRequested !== 'true') return;
     const remaining = Math.max(0, Math.ceil((Number(form.dataset.resendAt || 0) - Date.now()) / 1000));
     button.disabled = remaining > 0 || form.dataset.busy === 'true';
-    button.textContent = remaining ? `Повторить отправку через ${remaining} с` : 'Отправить код повторно';
-    if (remaining) window.setTimeout(() => updateResendButton(form), 1000);
+    button.textContent = remaining ? `Отправить повторно через ${remaining} с` : 'Отправить код повторно';
+    window.clearTimeout(form.resendTimer);
+    if (remaining) form.resendTimer = window.setTimeout(() => updateResendButton(form), 1000);
 }
 async function requestEmailCode(form) {
     if (form.dataset.busy === 'true') return;
-    if (form.dataset.codeRequested === 'true' && Date.now() < Number(form.dataset.resendAt || 0)) return;
+    if (Date.now() < Number(form.dataset.resendAt || 0)) {
+        applyErrors(form, new ApiError('Перед повторной отправкой подождите минуту.', 429)); return;
+    }
     clearRegistrationErrors(form);
-    const fields = ['name', 'email', 'birth_date', 'password', 'password_confirmation', ...(state.captcha?.provider === 'turnstile' ? ['turnstile_token'] : ['captcha_answer'])];
+    const hasResendToken = form.dataset.codeRequested === 'true' && Boolean(form.dataset.resendToken);
+    const fields = ['name', 'email', 'birth_date', 'password', 'password_confirmation', ...(hasResendToken ? [] : state.captcha?.provider === 'turnstile' ? ['turnstile_token'] : ['captcha_answer'])];
     if (!validate(form, fields)) return;
     if (!form.elements.email.validity.valid) { applyErrors(form, new ApiError('Укажите корректный email.', 422, {email:['Проверьте адрес электронной почты.']})); return; }
     if (!form.elements.birth_date.validity.valid || !isOldEnough(form.elements.birth_date.value)) { applyErrors(form, new ApiError('Homeostat доступен с 16 лет.', 422, {birth_date:['Укажите корректную дату рождения. Доступ открыт с 16 лет.']})); return; }
     if (form.elements.password.value.length < 8 || form.elements.password.value !== form.elements.password_confirmation.value) { applyErrors(form, new ApiError('Пароли должны совпадать и содержать минимум 8 символов.', 422, {password_confirmation:['Проверьте повтор пароля.']})); return; }
     const button = form.querySelector('[type=submit]');
-    const resend = form.querySelector('[data-action="request-email-code"]');
-    form.dataset.busy = 'true'; button.disabled = true; resend.disabled = true;
-    button.querySelector('span').textContent = 'Отправляем код…';
+    const confirm = form.querySelector('[data-confirm-email]');
+    const wasRequested = form.dataset.codeRequested === 'true';
+    setRegistrationBusy(form, true); button.querySelector('span').textContent = 'Отправляем код…';
     try {
         const result = await api('/auth/email/request-code', {
             method: 'POST', auth: false,
-            body: Object.fromEntries(new FormData(form).entries()),
+            body: {...Object.fromEntries(new FormData(form).entries()), ...(hasResendToken ? {resend_token: form.dataset.resendToken} : {})},
         });
+        if (!form.isConnected) return;
         form.dataset.codeRequested = 'true';
+        form.dataset.resendToken = result.resend_token || '';
         form.dataset.codeEmail = form.elements.email.value.trim();
         form.dataset.resendAt = String(Date.now() + Number(result.resend_after ?? 60) * 1000);
         form.querySelectorAll('[name=name], [name=email], [name=birth_date], [name=password], [name=password_confirmation]').forEach(input => input.readOnly = true);
-        form.querySelector('[data-email-code-field]').classList.remove('is-hidden');
-        form.querySelector('[data-edit-registration]').classList.remove('is-hidden');
-        resend.classList.remove('is-hidden'); form.elements.code.value = ''; form.elements.code.focus();
-        form.querySelector('[data-email-code-status]').textContent = `Код отправлен на ${form.dataset.codeEmail}. Введите его ниже. Срок действия: ${Math.ceil(Number(result.expires_in ?? 600) / 60)} мин. Проверьте также папку «Спам».`;
-        try { await refreshCaptchaInForm(form); } catch { /* The received code remains usable. */ }
+        form.elements.code.value = '';
+        form.querySelector('[data-verification-email]').textContent = form.dataset.codeEmail;
+        form.querySelector('[data-email-code-status]').textContent = `Код действует ${Math.ceil(Number(result.expires_in ?? 600) / 60)} мин. Введите 6 цифр из письма.`;
+        setRegistrationBusy(form, false); openEmailVerification(form);
+        // Resends use the encrypted, email-bound token rather than a second CAPTCHA.
     } catch (error) {
+        if (!form.isConnected) return;
+        if (error.status === 422) {
+            // An expired resend ticket requires a fresh CAPTCHA on the original form.
+            if (wasRequested) {
+                form.querySelector('[data-email-dialog]').close();
+                delete form.dataset.codeRequested; delete form.dataset.resendToken;
+                form.querySelectorAll('[readonly]').forEach(input => input.readOnly = false);
+            }
+            try { await refreshCaptchaInForm(form); } catch {}
+        }
         applyErrors(form, error);
-        if (error.status === 422) { try { await refreshCaptchaInForm(form); } catch {} }
     } finally {
-        delete form.dataset.busy; button.disabled = false;
-        button.querySelector('span').textContent = form.dataset.codeRequested === 'true' ? 'Подтвердить email' : 'Зарегистрироваться';
-        updateResendButton(form);
+        if (form.isConnected) {
+            setRegistrationBusy(form, false);
+            button.querySelector('span').textContent = form.dataset.codeRequested === 'true' ? 'Ввести код подтверждения' : 'Зарегистрироваться';
+            confirm.textContent = 'Подтвердить и создать аккаунт';
+        }
     }
 }
 
@@ -371,18 +400,20 @@ async function submitEmailRegistration(event) {
     const form = event.currentTarget;
     if (form.dataset.busy === 'true') return;
     if (form.dataset.codeRequested !== 'true') return requestEmailCode(form);
+    if (!form.querySelector('[data-email-dialog]').open) { openEmailVerification(form); return; }
     clearRegistrationErrors(form);
     if (!/^\d{6}$/.test(form.elements.code.value)) { applyErrors(form, new ApiError('Введите код из шести цифр.', 422, {code:['Введите 6 цифр из письма.']})); return; }
-    const button = form.querySelector('[type=submit]');
-    form.dataset.busy = 'true'; button.disabled = true; button.querySelector('span').textContent = 'Проверяем код…';
+    const confirm = form.querySelector('[data-confirm-email]');
+    setRegistrationBusy(form, true); confirm.textContent = 'Проверяем код…';
     try {
         const result = await api('/auth/email/verify-code', {
             method: 'POST', auth: false,
             body: {email: form.dataset.codeEmail, code: form.elements.code.value},
         });
+        form.querySelector('[data-email-dialog]').close();
         setAuth(result); go(result.new_account ? 'welcome' : 'tracks');
-    } catch (error) { applyErrors(form, error); }
-    finally { delete form.dataset.busy; button.disabled = false; button.querySelector('span').textContent = 'Подтвердить email'; updateResendButton(form); }
+    } catch (error) { if (form.isConnected) applyErrors(form, error); }
+    finally { if (form.isConnected) { setRegistrationBusy(form, false); confirm.textContent = 'Подтвердить и создать аккаунт'; } }
 }
 async function submitFilters(event) { event.preventDefault(); const data = new FormData(event.currentTarget); state.list.filters = { ...state.list.filters, q: data.get('q') || '', genre_id: data.get('genre_id') || '', sort: data.get('sort') || 'created_at', page: 1 }; go(`tracks?${new URLSearchParams(state.list.filters)}`); }
 async function submitTrack(event) {

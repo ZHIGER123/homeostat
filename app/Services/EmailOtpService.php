@@ -2,12 +2,10 @@
 
 namespace App\Services;
 
-use App\Mail\VerificationCodeMail;
 use App\Models\EmailVerificationCode;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -25,10 +23,7 @@ class EmailOtpService
 
     private function sendCode(string $email, string $name, string $role, ?string $birthDate, ?string $passwordHash): void
     {
-        $transport = config('mail.mailers.'.config('mail.default').'.transport');
-        if (! app()->runningUnitTests() && ! in_array($transport, ['smtp', 'sendmail', 'ses', 'ses-v2', 'mailgun', 'postmark', 'resend'], true)) {
-            throw new ServiceUnavailableHttpException(null, 'Отправка писем не настроена. Администратору нужно подключить SMTP или почтовый сервис.');
-        }
+        app(RegistrationMailService::class)->assertConfigured();
         $email = $this->normalize($email);
         $cooldown = $this->cooldownKey($email);
         if (Cache::has($cooldown)) {
@@ -47,7 +42,7 @@ class EmailOtpService
 
         $ttl = (int) config('services.email_otp.ttl', 10);
         try {
-            Mail::to($email)->send(new VerificationCodeMail($code, $ttl));
+            app(RegistrationMailService::class)->sendVerificationCode($email, $code, $ttl);
         } catch (\Throwable $exception) {
             $record->update(['used_at' => now()]);
             report($exception);

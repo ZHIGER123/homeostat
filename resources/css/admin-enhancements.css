@@ -33,3 +33,21 @@
 
 .is-hidden { display:none!important; }
 .email-code-actions { display:grid; gap:10px; }.email-code-status { font-size:13px; line-height:1.5; color:var(--green); }
+
+/* Native modal keeps the completed registration form behind an inert backdrop. */
+.email-verification-dialog { box-sizing:border-box; width:min(460px,calc(100vw - 32px)); max-height:calc(100dvh - 32px); margin:auto; padding:0; border:1px solid #69473e; border-radius:20px; background:#151718; color:#f5f2ef; box-shadow:0 24px 100px #0009; overflow-y:auto; }
+.email-verification-dialog::backdrop { background:#050607cc; backdrop-filter:blur(6px); }
+.email-verification-content { position:relative; display:grid; gap:16px; padding:32px; }
+.email-dialog-close { position:absolute; top:10px; right:12px; width:40px; height:40px; border:0; border-radius:8px; background:transparent; color:#c5bcb7; font-size:28px; cursor:pointer; }
+.email-dialog-icon { display:grid; place-items:center; width:56px; height:56px; border:1px solid #70483d; border-radius:16px; background:#31211c; color:#ff947e; font-size:30px; }
+.email-verification-dialog h2 { margin:0; font-size:28px; line-height:1.15; letter-spacing:-.8px; }
+.email-verification-dialog p { margin:0; font-size:14px; line-height:1.6; color:#bcb6b2; overflow-wrap:anywhere; }
+.email-verification-dialog strong { display:block; color:#f5f2ef; font-weight:600; }
+.email-verification-dialog label { display:grid; gap:10px; font-size:14px; font-weight:600; }
+.email-verification-dialog input[name=code] { box-sizing:border-box; width:100%; min-height:64px; border:1px solid #6d5148; border-radius:10px; padding:12px; background:#0b0c0d; color:#fff; font:600 28px/1.2 monospace; letter-spacing:.3em; text-align:center; }
+.email-verification-dialog .inline-error:empty,.email-verification-dialog .form-message:empty { display:none; }
+.email-verification-dialog .inline-error,.email-verification-dialog .form-message { color:#ffabb1; font-size:13px; font-weight:400; }
+.email-verification-dialog .button { min-height:48px; white-space:normal; }
+.email-dialog-edit { min-height:44px; border:0; background:transparent; color:#ffac99; text-decoration:underline; cursor:pointer; }
+.email-dialog-note { color:#aaa19d; font-size:12px; line-height:1.6; }
+@media(max-width:480px) { .email-verification-content { padding:28px 22px 22px; gap:14px; }.email-verification-dialog h2 { font-size:25px; } }
