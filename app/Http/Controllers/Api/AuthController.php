@@ -14,6 +14,7 @@ use App\Services\EmailOtpService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class AuthController extends Controller
@@ -47,6 +48,16 @@ class AuthController extends Controller
         if (! $user || ! Hash::check($request->validated('password'), $user->password)) return response()->json(['message' => 'Неверный email или пароль.'], 401);
         if ($user->is_blocked) return response()->json(['message' => 'Пользователь заблокирован.'], 403);
         return response()->json(['user' => (new UserResource($user))->resolve($request), 'token' => $user->createToken('api')->plainTextToken]);
+    }
+    public function uploadAvatar(Request $request): UserResource
+    {
+        $data = $request->validate(['avatar' => ['required', 'image', 'mimes:jpg,jpeg,png', 'max:5120']]);
+        $path = $data['avatar']->store('avatars', 'public');
+        if ($path === false) throw new \RuntimeException('Не удалось сохранить аватар.');
+        $user = $request->user(); $previous = $user->avatar_path;
+        try { $user->update(['avatar_path' => $path]); } catch (\Throwable $e) { Storage::disk('public')->delete($path); throw $e; }
+        if ($previous && str_starts_with($previous, 'avatars/')) Storage::disk('public')->delete($previous);
+        return new UserResource($user->refresh());
     }
     public function me(Request $request): UserResource { return new UserResource($request->user()); }
     public function updateProfile(UpdateProfileRequest $request): UserResource { $request->user()->update($request->validated()); return new UserResource($request->user()->refresh()); }
