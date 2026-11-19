@@ -17,6 +17,7 @@ class TrackResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'user_id' => $this->user_id,
             'title' => $this->title,
             'description' => $this->description,
             'cover_path' => $this->cover_path,

@@ -14,7 +14,7 @@ use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 
 class EmailOtpService
 {
-    public function requestCode(string $email, string $name, string $role, ?string $birthDate = null): void
+    public function requestCode(string $email, string $name, string $role, ?string $birthDate = null, ?string $passwordHash = null): void
     {
         $email = $this->normalize($email);
         $cooldown = $this->cooldownKey($email);
@@ -28,7 +28,7 @@ class EmailOtpService
             'email' => $email,
             'purpose' => 'registration',
             'code_hash' => Hash::make($code),
-            'payload' => json_encode(['name' => trim($name), 'role' => $role, 'birth_date' => $birthDate], JSON_THROW_ON_ERROR),
+            'payload' => json_encode(['name' => trim($name), 'role' => $role, 'birth_date' => $birthDate, 'password_hash' => $passwordHash], JSON_THROW_ON_ERROR),
             'expires_at' => now()->addMinutes((int) config('services.email_otp.ttl', 10)),
         ]);
 
@@ -71,11 +71,12 @@ class EmailOtpService
             return $user;
         }
         $payload = json_decode((string) $record->payload, true, 512, JSON_THROW_ON_ERROR);
+        \Illuminate\Support\Facades\Validator::make($payload, ['birth_date' => ['required', 'date_format:Y-m-d', new \App\Rules\MinimumAge(User::MIN_AGE)]])->validate();
         $created = true;
         $user = User::create([
             'name' => $payload['name'] ?: Str::before($email, '@'),
             'email' => $email,
-            'password' => Str::random(64),
+            'password' => $payload['password_hash'] ?? Str::random(64),
             'role' => 'listener',
             'birth_date' => $payload['birth_date'] ?? null,
         ]);

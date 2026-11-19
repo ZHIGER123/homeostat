@@ -1,0 +1,35 @@
+/* Homeostat: accessible date entry and moderation workspace. */
+.birth-date-card { margin:0; padding:20px; min-width:0; border:1px solid #6e443a; border-radius:12px; background:#211b19; }
+.birth-date-card legend { padding:0 8px; font-size:16px; font-weight:700; }
+.age-badge { display:inline-block; margin-left:8px; padding:4px 8px; border-radius:6px; background:#ff947e; color:#23120e; font-size:14px; }
+.birth-date-card p,.birth-date-card small { display:block; color:#c1b7b2; font-size:14px; line-height:1.5; }
+.birth-date-card input { color-scheme:dark; font-size:16px; margin-bottom:12px; min-height:48px; }
+.birth-date-card .inline-error { margin-top:8px; color:#ffabb1; }
+.auth-card input:focus-visible,button:focus-visible,a:focus-visible,summary:focus-visible { outline:2px solid #ff947e; outline-offset:4px; }
+.moderation-row.moderation-card { display:grid; grid-template-columns:minmax(180px,280px) minmax(0,1fr); align-items:start; gap:24px; padding:24px 0; }
+.moderation-cover-button { display:grid; place-items:center; width:100%; aspect-ratio:1; padding:0; border:1px solid #454747; border-radius:12px; overflow:hidden; background:#0b0c0d; color:#b6bbbd; }
+.moderation-full-cover { width:100%; height:100%; object-fit:contain; }
+.moderation-card-body { min-width:0; overflow-wrap:anywhere; }
+.moderation-card-body h3 { margin:16px 0 8px; font-size:24px; }
+.moderation-card-body p { color:#b6bbbd; font-size:14px; line-height:1.5; }
+.moderation-identity a { color:#ffac99; text-decoration:underline; }
+.moderation-preview { min-width:0; gap:12px; margin:20px 0; }
+.moderation-audio { width:100%; max-width:none; height:48px; color-scheme:dark; }
+.moderation-preview .action-row { gap:8px; color:#b6bbbd; font-size:14px; }
+.cover-dialog { max-width:96vw; max-height:94vh; padding:16px; border:1px solid #454747; border-radius:12px; background:#131517; color:#fff; }
+.cover-dialog::backdrop { background:#000c; }
+.cover-dialog img { display:block; max-width:88vw; max-height:75vh; object-fit:contain; margin-top:16px; }
+.admin-users-panel { margin-top:24px; }
+.admin-user-card { border-top:1px solid #363a3d; padding:24px 0; overflow-wrap:anywhere; }
+.admin-user-card header { display:flex; gap:16px; justify-content:space-between; align-items:start; }
+.admin-user-card p { color:#b6bbbd; font-size:14px; margin:8px 0 16px; }
+.admin-user-card summary { cursor:pointer; min-height:44px; color:#ffac99; }
+.admin-user-card label { display:grid; gap:8px; font-size:14px; }
+.admin-user-facts { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; font-size:14px; margin:16px 0 24px; }
+.admin-user-facts dt { color:#b6bbbd; }.admin-user-facts dd { margin:0; }
+.admin-users-panel .filter-bar { flex-wrap:wrap; }.admin-users-panel .search-field { min-width:160px; }
+@media(max-width:760px) { .moderation-row.moderation-card { grid-template-columns:1fr; gap:20px; }.moderation-cover-button { max-width:340px; justify-self:center; }.admin-user-card header { flex-wrap:wrap; }.admin-user-facts { grid-template-columns:1fr; gap:8px; }.admin-user-facts dd { margin-bottom:8px; } }
+@media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important; transition:none!important; } }
+
+.is-hidden { display:none!important; }
+.email-code-actions { display:grid; gap:10px; }.email-code-status { font-size:13px; line-height:1.5; color:var(--green); }

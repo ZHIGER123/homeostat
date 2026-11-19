@@ -30,9 +30,9 @@ class AuthController extends Controller
 
     public function requestEmailCode(Request $request, CaptchaService $captcha, EmailOtpService $otp): JsonResponse
     {
-        $data = $request->validate(['name' => ['required', 'string', 'max:255'], 'email' => ['required', 'email', 'max:255'], 'birth_date' => ['required', 'date_format:Y-m-d', new MinimumAge(User::MIN_AGE)], 'role' => ['sometimes', Rule::in(['listener', 'artist'])], 'captcha_id' => ['nullable', 'string', 'max:80'], 'captcha_answer' => ['nullable', 'string', 'max:20'], 'turnstile_token' => ['nullable', 'string', 'max:2048']]);
+        $data = $request->validate(['password' => ['required', 'string', 'min:8', 'max:128', 'confirmed'], 'name' => ['required', 'string', 'max:255'], 'email' => ['required', 'email', 'max:255'], 'birth_date' => ['required', 'date_format:Y-m-d', new MinimumAge(User::MIN_AGE)], 'role' => ['sometimes', Rule::in(['listener', 'artist'])], 'captcha_id' => ['nullable', 'string', 'max:80'], 'captcha_answer' => ['nullable', 'string', 'max:20'], 'turnstile_token' => ['nullable', 'string', 'max:2048']]);
         if (! $captcha->verify($data['captcha_id'] ?? null, $data['captcha_answer'] ?? null, $data['turnstile_token'] ?? null, $request->ip())) return response()->json(['message' => 'Проверка безопасности не пройдена.', 'errors' => ['captcha_answer' => ['Обновите CAPTCHA и попробуйте снова.']]], 422);
-        $otp->requestCode($data['email'], $data['name'], UserRole::Listener->value, $data['birth_date']);
+        $otp->requestCode($data['email'], $data['name'], UserRole::Listener->value, $data['birth_date'], Hash::make($data['password']));
         return response()->json(['message' => 'Если адрес допустим, письмо с кодом отправлено.'], 202);
     }
 

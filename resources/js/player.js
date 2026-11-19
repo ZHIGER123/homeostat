@@ -62,5 +62,6 @@ export function createPlayer({ url, loadTrack, registerPlay, escapeHtml, notify 
     ['pause', 'timeupdate', 'durationchange', 'volumechange', 'seeked'].forEach(event => audio.addEventListener(event, refresh));
     audio.addEventListener('ended', () => { counted = false; refresh(); });
     audio.addEventListener('error', () => { if (trackId) notify('Не удалось загрузить аудио. Проверьте файл и подключение.', 'error'); refresh(); });
-    return { play, mount };
+    audio.addEventListener('play', () => document.querySelectorAll('[data-preview-audio]').forEach(preview => preview.pause()));
+    return { play, mount, pause: () => audio.pause() };
 }

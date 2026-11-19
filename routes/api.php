@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\Admin\TrackModerationController;
 use App\Http\Controllers\Api\Admin\UserBlockController;
+use App\Http\Controllers\Api\Admin\UserManagementController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ArtistFeatureController;
 use App\Http\Controllers\Api\BillingController;
@@ -11,7 +12,6 @@ use App\Http\Controllers\Api\GenreController;
 use App\Http\Controllers\Api\LibraryController;
 use App\Http\Controllers\Api\PlaylistController;
 use App\Http\Controllers\Api\PlaylistTrackController;
-use App\Http\Controllers\Api\SocialAuthController;
 use App\Http\Controllers\Api\TrackCommentController;
 use App\Http\Controllers\Api\TrackController;
 use App\Http\Controllers\Api\TrackStatsController;
@@ -31,9 +31,6 @@ Route::prefix('v1')->name('v1.')->group(function () {
     Route::get('auth/captcha', [CaptchaController::class, 'show'])->middleware('throttle:30,1')->name('auth.captcha');
     Route::post('auth/email/request-code', [AuthController::class, 'requestEmailCode'])->middleware('throttle:10,1')->name('auth.email.request-code');
     Route::post('auth/email/verify-code', [AuthController::class, 'verifyEmailCode'])->middleware('throttle:15,1')->name('auth.email.verify-code');
-    Route::get('auth/{provider}/redirect', [SocialAuthController::class, 'redirect'])->middleware('throttle:20,1')->name('auth.oauth.redirect');
-    Route::get('auth/{provider}/callback', [SocialAuthController::class, 'callback'])->name('auth.oauth.callback');
-    Route::post('auth/oauth/exchange', [SocialAuthController::class, 'exchange'])->middleware('throttle:10,1')->name('auth.oauth.exchange');
     Route::post('login', [AuthController::class, 'login'])->middleware('throttle:5,1')->name('login');
     Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:5,1')->name('auth.login');
     Route::apiResource('tracks', TrackController::class)->only(['index', 'show']);
@@ -81,6 +78,10 @@ Route::prefix('v1')->name('v1.')->group(function () {
         Route::delete('users/{user}/following/{artist}', [UserFollowController::class, 'destroy'])->name('users.following.destroy');
         Route::get('users/{user}/feed', [UserFollowController::class, 'feed'])->name('users.feed');
     });
-    Route::prefix('admin')->name('admin.')->middleware(['auth:sanctum', 'not_blocked', 'role:admin'])->group(function () { Route::get('tracks', [TrackModerationController::class, 'index'])->name('tracks.index'); Route::patch('tracks/{track}/status', [TrackModerationController::class, 'updateStatus'])->name('tracks.status'); Route::put('users/{user}/block', [UserBlockController::class, 'store'])->name('users.block.store'); Route::delete('users/{user}/block', [UserBlockController::class, 'destroy'])->name('users.block.destroy'); });
+    Route::prefix('admin')->name('admin.')->middleware(['auth:sanctum', 'not_blocked', 'role:admin'])->group(function () {
+        Route::get('users', [UserManagementController::class, 'index'])->name('users.index');
+        Route::get('users/{user}', [UserManagementController::class, 'show'])->name('users.show');
+        Route::patch('users/{user}', [UserManagementController::class, 'update'])->name('users.update');
+        Route::get('tracks', [TrackModerationController::class, 'index'])->name('tracks.index'); Route::patch('tracks/{track}/status', [TrackModerationController::class, 'updateStatus'])->name('tracks.status'); Route::put('users/{user}/block', [UserBlockController::class, 'store'])->name('users.block.store'); Route::delete('users/{user}/block', [UserBlockController::class, 'destroy'])->name('users.block.destroy'); });
     Route::middleware(['auth:sanctum', 'not_blocked', 'role:admin'])->group(function () { Route::apiResource('genres', GenreController::class)->only(['store', 'update', 'destroy']); });
 });

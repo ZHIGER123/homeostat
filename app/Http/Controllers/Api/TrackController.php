@@ -27,7 +27,13 @@ class TrackController extends Controller
     public function show(Request $request, Track $track): TrackResource { $user = $request->user('sanctum'); abort_if($track->status !== TrackStatus::Published && ! ($user && ($user->isAdmin() || $track->user_id === $user->id)), 404); return new TrackResource($this->tracks->card($track)); }
     public function update(UpdateTrackRequest $request, Track $track): TrackResource { Gate::authorize('update', $track); return new TrackResource($this->tracks->update($track, $request->safe()->except(['duration']))); }
     public function destroy(Track $track): Response { Gate::authorize('delete', $track); $this->tracks->delete($track); return response()->noContent(); }
-    public function cover(Track $track): BinaryFileResponse { abort_unless($track->status === TrackStatus::Published && $track->cover_path && Storage::disk('public')->exists($track->cover_path), 404); return response()->file(Storage::disk('public')->path($track->cover_path)); }
+    public function cover(Request $request, Track $track): BinaryFileResponse
+    {
+        $user = $request->user('sanctum');
+        $canPreview = $user && ! $user->is_blocked && ($user->isAdmin() || $track->user_id === $user->id);
+        abort_unless(($track->status === TrackStatus::Published || $canPreview) && $track->cover_path && Storage::disk('public')->exists($track->cover_path), 404);
+        return response()->file(Storage::disk('public')->path($track->cover_path), ['Cache-Control' => $track->status === TrackStatus::Published ? 'public, max-age=3600' : 'private, no-store']);
+    }
     public function stream(Request $request, Track $track): BinaryFileResponse
     {
         // Admins (moderation) and the track owner may listen to unpublished tracks.

@@ -34,7 +34,7 @@ class AuthApiTest extends TestCase
     public function test_email_code_distinguishes_new_and_existing_accounts(): void
     {
         foreach (['new-otp@example.com', 'existing-otp@example.com'] as $email) {
-            \App\Models\EmailVerificationCode::create(['email' => $email, 'purpose' => 'registration', 'code_hash' => \Illuminate\Support\Facades\Hash::make('123456'), 'payload' => json_encode(['name' => 'OTP', 'role' => 'artist']), 'expires_at' => now()->addMinutes(10)]);
+            \App\Models\EmailVerificationCode::create(['email' => $email, 'purpose' => 'registration', 'code_hash' => \Illuminate\Support\Facades\Hash::make('123456'), 'payload' => json_encode(['name' => 'OTP', 'role' => 'artist', 'birth_date' => '2000-01-01']), 'expires_at' => now()->addMinutes(10)]);
         }
         User::factory()->listener()->create(['email' => 'existing-otp@example.com']);
         $this->postJson('/api/v1/auth/email/verify-code', ['email' => 'new-otp@example.com', 'code' => '123456'])->assertCreated()->assertJsonPath('new_account', true)->assertJsonPath('user.role', 'listener');
@@ -126,13 +126,11 @@ class AuthApiTest extends TestCase
         $this->assertDatabaseMissing('users', ['email' => 'young@example.com']);
     }
 
-    public function test_only_google_oauth_is_available_and_requires_age_confirmation(): void
+    public function test_google_oauth_and_exchange_are_disabled(): void
     {
-        config(['services.oauth.google.client_id' => 'test-id', 'services.oauth.google.client_secret' => 'test-secret']);
-        $this->get('/api/v1/auth/apple/redirect?age_confirmed=1')->assertNotFound();
-        $this->get('/api/v1/auth/github/redirect?age_confirmed=1')->assertNotFound();
-        $this->assertStringContainsString('oauth_error=', $this->get('/api/v1/auth/google/redirect')->assertRedirect()->headers->get('Location'));
-        $this->assertStringStartsWith('https://accounts.google.com/', $this->get('/api/v1/auth/google/redirect?age_confirmed=1')->assertRedirect()->headers->get('Location'));
+        $this->getJson('/api/v1/auth/google/redirect?age_confirmed=1')->assertNotFound();
+        $this->getJson('/api/v1/auth/google/callback?code=obsolete')->assertNotFound();
+        $this->postJson('/api/v1/auth/oauth/exchange', ['handle' => str_repeat('a', 64)])->assertNotFound();
     }
 
     public function test_admin_can_stream_pending_track_for_moderation_but_guest_cannot(): void

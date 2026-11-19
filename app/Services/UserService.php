@@ -23,6 +23,7 @@ class UserService
         }
 
         $user->update(['is_blocked' => true]);
+        $user->tokens()->delete();
 
         return $user;
     }

@@ -1,3 +1,5 @@
+import { maxBirthDate, isOldEnough } from './age.js';
+import '../css/admin-enhancements.css';
 import { createLibraryViews } from './library.js';
 import { createPlayer } from './player.js';
 import { pricingView, billingView, choosePlan, billingAction, handleBillingQuery, syncBilling } from './billing.js';
@@ -125,12 +127,9 @@ function shell(content, title = 'Обзор') {
 function formMessage(message = '') { return `<p class="form-message" data-form-message>${escapeHtml(message)}</p>`; }
 function fieldError(errors, field) { return errors?.[field]?.[0] ? `<small class="field-error">${escapeHtml(errors[field][0])}</small>` : ''; }
 
-function socialButtons(mode) {
-    return `<div class="auth-divider"><span>или продолжить через</span></div><label class="age-check"><input type="checkbox" data-age-confirm> <span>Мне исполнилось 16 лет</span></label><div class="social-grid social-grid-single"><a class="social-button social-google" data-provider="google" data-action="google-login" href="${apiUrl('/auth/google/redirect?age_confirmed=1')}"><b>G</b><span>Войти через Google</span></a></div>`;
+function birthDateMarkup() {
+    return `<fieldset class="birth-date-card"><legend>Дата рождения <span class="age-badge">16+</span></legend><p>Музыка для вашей сцены. Укажите дату рождения — доступ открыт с 16 лет.</p><label for="birth-date">День, месяц и год<input id="birth-date" name="birth_date" type="date" autocomplete="bday" min="1900-01-01" max="${maxBirthDate()}" aria-describedby="birth-date-help birth-date-error" required></label><small id="birth-date-help">Дата не отображается в публичном профиле. Ввод даты — заявление о возрасте, а не проверка документа.</small><span id="birth-date-error" class="inline-error" data-error="birth_date" aria-live="polite"></span></fieldset>`;
 }
-
-function maxBirthDate() { const d = new Date(); d.setFullYear(d.getFullYear() - 16); return d.toISOString().slice(0, 10); }
-function isOldEnough(value) { return Boolean(value) && value <= maxBirthDate(); }
 
 function captchaMarkup() {
     const captcha = state.captcha || {};
@@ -143,9 +142,9 @@ function captchaMarkup() {
 function loginView(mode = 'login', error = '') {
     const register = mode === 'register';
     const fields = register
-        ? `<label>Имя<input name="name" autocomplete="name" placeholder="Как к тебе обращаться" required><span class="inline-error" data-error="name"></span></label><label>Email<input name="email" type="email" autocomplete="email" placeholder="you@example.com" required><span class="inline-error" data-error="email"></span></label><label>Дата рождения<input name="birth_date" type="date" autocomplete="bday" min="1900-01-01" max="${maxBirthDate()}" required><span class="inline-error" data-error="birth_date"></span></label>${captchaMarkup()}<div class="email-code-actions"><button class="button button-light" type="button" data-action="request-email-code">Получить код на почту</button><span class="inline-error" data-email-code-status></span></div><label class="is-hidden" data-email-code-field>Код из письма<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 цифр"><span class="inline-error" data-error="code"></span></label>`
+        ? `<label>Имя<input name="name" autocomplete="name" placeholder="Как к тебе обращаться" required><span class="inline-error" data-error="name"></span></label><label>Email<input name="email" type="email" autocomplete="email" placeholder="you@example.com" required><span class="inline-error" data-error="email"></span></label>${birthDateMarkup()}<label>Пароль<input name="password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required><span class="inline-error" data-error="password"></span></label><label>Повторите пароль<input name="password_confirmation" type="password" autocomplete="new-password" required><span class="inline-error" data-error="password_confirmation"></span></label>${captchaMarkup()}<div class="email-code-actions"><button class="button button-light" type="button" data-action="request-email-code">Получить код на почту</button><span class="email-code-status" data-email-code-status aria-live="polite"></span><button class="button button-light is-hidden" type="button" data-edit-registration>Изменить данные</button></div><label class="is-hidden" data-email-code-field>Код из письма<input name="code" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 цифр"><span class="inline-error" data-error="code"></span></label>`
         : `<label>Email<input name="email" type="email" autocomplete="email" placeholder="you@example.com" required><span class="inline-error" data-error="email"></span></label><label>Пароль<input name="password" type="password" autocomplete="current-password" placeholder="Минимум 8 символов" required><span class="inline-error" data-error="password"></span></label>`;
-    return `<div class="auth-layout"><section class="auth-art"><div class="orb orb-one"></div><div class="orb orb-two"></div><span class="eyebrow">SOUND • STATE • HOME</span><h1>Найди звук,<br><em>который остаётся.</em></h1><p>Homeostat собирает музыку вокруг твоего состояния — от первой ноты до собственного плейлиста.</p><div class="wave-hero" aria-hidden="true">${Array.from({ length: 32 }, (_, i) => `<i style="--h:${20 + ((i * 17) % 76)}%"></i>`).join('')}</div><div class="auth-art-note">Создавай свою сцену. Слушай своё.</div></section><section class="auth-card-wrap"><div class="auth-card"><div class="auth-card-head"><span class="eyebrow">${register ? 'NEW ACCOUNT' : 'WELCOME BACK'}</span><h2>${register ? 'Создай свой профиль' : 'С возвращением'}</h2><p>${register ? 'Код подтверждения придёт на указанную почту.' : 'Войдите, чтобы продолжить слушать.'}</p></div>${socialButtons(mode)}<div class="auth-divider auth-divider-small"><span>${register ? 'или создай аккаунт по email' : 'или войди по email'}</span></div><form id="auth-form" data-mode="${register ? 'register' : 'login'}" novalidate>${fields}${formMessage(error)}<button class="button button-primary button-wide" type="submit"><span>${register ? 'Подтвердить и создать' : 'Войти в Homeostat'}</span><b>→</b></button></form><div class="auth-switch">${register ? 'Уже есть аккаунт?' : 'Впервые здесь?'} <a href="#${register ? 'login' : 'register'}">${register ? 'Войти' : 'Создать профиль'}</a></div><p class="auth-legal">Продолжая, вы принимаете правила Homeostat и подтверждаете, что вам исполнилось 16 лет. Homeostat — платформа 16+.</p></div></section></div>`;
+    return `<div class="auth-layout"><section class="auth-art"><div class="orb orb-one"></div><div class="orb orb-two"></div><span class="eyebrow">SOUND • STATE • HOME</span><h1>Найди звук,<br><em>который остаётся.</em></h1><p>Homeostat собирает музыку вокруг твоего состояния — от первой ноты до собственного плейлиста.</p><div class="wave-hero" aria-hidden="true">${Array.from({ length: 32 }, (_, i) => `<i style="--h:${20 + ((i * 17) % 76)}%"></i>`).join('')}</div><div class="auth-art-note">Создавай свою сцену. Слушай своё.</div></section><section class="auth-card-wrap"><div class="auth-card"><div class="auth-card-head"><span class="eyebrow">${register ? 'NEW ACCOUNT' : 'WELCOME BACK'}</span><h2>${register ? 'Создай свой профиль' : 'С возвращением'}</h2><p>${register ? 'Код подтверждения придёт на указанную почту.' : 'Войдите, чтобы продолжить слушать.'}</p></div><form id="auth-form" data-mode="${register ? 'register' : 'login'}" novalidate>${fields}${formMessage(error)}<button class="button button-primary button-wide" type="submit"><span>${register ? 'Подтвердить и создать' : 'Войти в Homeostat'}</span><b>→</b></button></form><div class="auth-switch">${register ? 'Уже есть аккаунт?' : 'Впервые здесь?'} <a href="#${register ? 'login' : 'register'}">${register ? 'Войти' : 'Создать профиль'}</a></div><p class="auth-legal">Homeostat — платформа 16+. Дата рождения запрашивается только при регистрации.</p></div></section></div>`;
 }
 
 
@@ -174,19 +173,12 @@ function mountTurnstile() {
     } else renderWidget();
 }
 
-async function completeOAuth() {
-    const params = new URLSearchParams(window.location.search);
-    const handle = params.get('oauth'); const oauthError = params.get('oauth_error');
-    if (!handle && !oauthError) return false;
-    window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
-    if (oauthError) { go('login'); window.setTimeout(() => notify(oauthError, 'error'), 50); return true; }
-    try { const result = await api('/auth/oauth/exchange', { method: 'POST', auth: false, body: { handle } }); setAuth(result); go(result.new_account ? 'welcome' : 'tracks'); window.setTimeout(() => notify('Авторизация выполнена', 'success'), 50); } catch (error) { go('login'); window.setTimeout(() => notify(readError(error), 'error'), 50); }
-    return true;
-}
-
 let renderVersion = 0;
 async function render() {
+    document.querySelectorAll('[data-preview-audio]').forEach(audio => { audio.pause(); audio.removeAttribute('src'); audio.load(); });
     moderationPreviewUrls?.forEach(url => URL.revokeObjectURL(url)); moderationPreviewUrls?.clear();
+    previewRequests.forEach(controller => controller.abort()); previewRequests.clear();
+    document.querySelectorAll('.cover-dialog').forEach(dialog => dialog.close());
     const version = ++renderVersion;
     const route = currentRoute();
     if (!state.token && !['login', 'register', 'tracks', 'pricing'].includes(route.path) && !/^tracks\/\d+$/.test(route.path) && !/^users\/\d+$/.test(route.path)) { go('login'); return; }
@@ -209,16 +201,16 @@ async function render() {
         else if (/^playlists\/\d+\/search$/.test(route.path)) { requireAuth(); const id = route.path.split('/')[1]; const playlist = dataOf(await api(`/playlists/${id}`)); if (playlist.owner?.id !== state.user.id && state.user.role !== 'admin') throw new ApiError('Недостаточно прав.', 403); const params = new URLSearchParams(route.params); const result = await api(`/tracks?${params}`); content = playlistSearchView(playlist, result, params); title = 'Поиск треков'; }
         else if (route.path.startsWith('playlists/')) { requireAuth(); const result = await api(`/playlists/${route.path.split('/')[1]}`); const liked = await api(`/playlists/${route.path.split('/')[1]}/like`); state.likedPlaylistIds = liked.liked ? [dataOf(result).id] : []; content = playlistDetailView(dataOf(result)); title = 'Плейлист'; }
         else if (route.path === 'upload') { requireAuth(); await ensureGenres(); try { state.billing = dataOf(await api('/billing/me')); } catch { state.billing = null; } content = uploadView(); title = 'Загрузить'; }
-        else if (route.path === 'upload-success') { requireAuth(); content = `<div class="empty-state"><span class="empty-icon">✓</span><h1>Трек отправлен на модерацию</h1><p>После проверки он появится в каталоге. Повторная загрузка не нужна.</p><div class="action-row"><a class="button button-primary" href="#tracks">В каталог</a><a class="button button-light" href="#upload">Загрузить ещё</a></div></div>`; title = 'Загрузка завершена'; }
+        else if (route.path === 'upload-success') { requireAuth(); content = `<div class="empty-state"><span class="empty-icon">✓</span><h1>Трек отправлен на модерацию</h1><p>После проверки он появится в каталоге. Повторная загрузка не нужна.</p><p>Ваш ID: <b>#${escapeHtml(state.user.id)}</b></p><div class="action-row"><a class="button button-primary" href="#tracks">В каталог</a><a class="button button-light" href="#upload">Загрузить ещё</a></div></div>`; title = 'Загрузка завершена'; }
         else if (route.path.startsWith('edit/')) { requireAuth(); await ensureGenres(); const result = await api(`/tracks/${route.path.split('/')[1]}`); content = uploadView(dataOf(result)); title = 'Редактировать'; }
-        else if (route.path === 'admin') { requireRole('admin'); await ensureGenres(); const result = await api('/admin/tracks?status=pending'); content = adminView(itemsOf(result)); title = 'Администрирование'; }
+        else if (route.path === 'admin') { requireRole('admin'); await ensureGenres(); const result = await api(`/admin/tracks?status=pending&page=${Math.max(1, Number(route.params.get('tracks_page')) || 1)}`); state.adminUsers = await api(`/admin/users?${new URLSearchParams({q:route.params.get('q') || '', role:route.params.get('role') || '', blocked:route.params.get('blocked') || '', page:route.params.get('users_page') || '1'})}`); content = adminView(itemsOf(result), result.meta || {}, route.params); title = 'Администрирование'; }
         else if (route.path === 'stats') { requireAuth(); const filters = { from: route.params.get('from') || '', to: route.params.get('to') || '' }; const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value)); const result = await api(`/me/tracks/stats${query.toString() ? `?${query}` : ''}`); content = statsView(dataOf(result), filters); title = 'Статистика'; }
         else if (route.path === 'pricing') { if (!state.plans.length) state.plans = itemsOf(await api('/billing/plans', { auth: false })); if (state.token) state.billing = dataOf(await api('/billing/me')); content = pricingView(state.plans); title = 'Тарифы'; }
         else if (route.path === 'billing') { requireAuth(); const result = await api('/billing/me'); state.billing = dataOf(result); content = billingView(state.billing); title = 'Подписка'; }
         else if (route.path === 'profile') { requireAuth(); const result = await api('/me'); state.user = dataOf(result); localStorage.setItem(USER_KEY, JSON.stringify(state.user)); const page = key => Math.max(1, Number.parseInt(route.params.get(key), 10) || 1); const [likes, following, lists, spotlight] = await Promise.all([api(`/users/${state.user.id}/likes?page=${page('tracks_page')}`), api(`/me/following?page=${page('artists_page')}`), api(`/me/liked-playlists?page=${page('playlists_page')}`), api(`/users/${state.user.id}/spotlight`, {auth:false})]); content = profileView(likes, following, lists, route.params, itemsOf(spotlight)); title = 'Профиль'; }
         else { go(state.token ? 'tracks' : 'login'); return; }
         if (version !== renderVersion) return;
-        root.innerHTML = shell(content, title); bindEvents();
+        root.innerHTML = shell(content, title); bindEvents(); if (route.path === 'admin') mountModerationCovers(version);
     } catch (error) {
         if (version !== renderVersion || error.status === 401) return;
         const message = error.status === 403 ? 'Эта часть Homeostat доступна другой роли пользователя.' : readError(error);
@@ -245,10 +237,14 @@ function validate(form, fields) { let valid = true; fields.forEach(field => { co
 
 function bindEvents() {
     player.mount();
+    bindAdminUsers();
+    document.querySelector('[data-edit-registration]')?.addEventListener('click', () => { const form = document.querySelector('#auth-form'); delete form.dataset.codeRequested; delete form.dataset.codeEmail; form.querySelectorAll('[readonly]').forEach(input => input.readOnly = false); form.elements.code.value = ''; form.querySelector('[data-email-code-field]').classList.add('is-hidden'); form.querySelector('[data-email-code-status]').textContent = 'После изменения данных запросите новый код.'; document.querySelector('[data-action="request-email-code"]').textContent = 'Получить код на почту'; refreshCaptchaInForm(form).catch(error => applyErrors(form,error)); });
+    document.querySelectorAll('[data-cover-dialog]').forEach(btn => btn.addEventListener('click', () => { const img = btn.querySelector('img'); if (!img?.getAttribute('src')) return; const dialog = document.createElement('dialog'); dialog.className = 'cover-dialog'; const close = document.createElement('button'); close.className = 'button button-light'; close.textContent = 'Закрыть'; close.addEventListener('click', () => dialog.close()); const full = img.cloneNode(); full.removeAttribute('data-moderation-cover'); full.alt = 'Обложка в полном размере'; dialog.append(close, full); document.body.append(dialog); dialog.addEventListener('close', () => dialog.remove(), {once:true}); dialog.showModal(); }));
+    document.querySelectorAll('[data-preview-seek]').forEach(btn => btn.addEventListener('click', () => { const audio = document.querySelector(`[data-preview-audio="${btn.dataset.id}"]`); if (audio && Number.isFinite(audio.duration)) audio.currentTime = Math.max(0, Math.min(audio.duration, audio.currentTime + Number(btn.dataset.previewSeek))); }));
+    document.querySelectorAll('[data-preview-audio]').forEach(audio => { audio.addEventListener('play', () => { document.querySelectorAll('[data-preview-audio]').forEach(other => { if (other !== audio) other.pause(); }); player.pause?.(); }); });
     document.querySelectorAll('[data-action="toggle-menu"]').forEach(btn => btn.addEventListener('click', () => document.querySelector('.sidebar')?.classList.toggle('is-open')));
-    document.querySelectorAll('[data-action="refresh-captcha"]').forEach(btn => btn.addEventListener('click', async () => { try { await loadCaptcha(); render(); } catch (error) { notify(readError(error), 'error'); } }));
+    document.querySelectorAll('[data-action="refresh-captcha"]').forEach(btn => btn.addEventListener('click', async () => { try { await refreshCaptchaInForm(btn.closest('form')); } catch (error) { notify(readError(error), 'error'); } }));
     document.querySelectorAll('[data-action="request-email-code"]').forEach(btn => btn.addEventListener('click', requestEmailCode));
-    document.querySelectorAll('[data-action="google-login"]').forEach(link => link.addEventListener('click', event => { const box = document.querySelector('[data-age-confirm]'); if (!box?.checked) { event.preventDefault(); box?.closest('.age-check')?.classList.add('is-error'); notify('Подтвердите, что вам исполнилось 16 лет', 'error'); } }));
     document.querySelectorAll('[data-action="admin-preview"]').forEach(btn => btn.addEventListener('click', () => previewModerationTrack(btn)));
     document.querySelectorAll('[data-action="logout"]').forEach(btn => btn.addEventListener('click', async () => { try { await api('/logout'); } catch {} clearAuth(); go('login'); notify('Вы вышли из аккаунта', 'success'); }));
     document.querySelectorAll('[data-action="retry"]').forEach(btn => btn.addEventListener('click', render));
@@ -302,23 +298,39 @@ async function submitAuth(event) {
 
 async function requestEmailCode(event) {
     const form = event.currentTarget.closest('form');
-    const fields = ['name', 'email', 'birth_date', 'captcha_answer'];
+    const fields = ['name', 'email', 'birth_date', 'password', 'password_confirmation', ...(state.captcha?.provider === 'turnstile' ? ['turnstile_token'] : ['captcha_answer'])];
     if (!validate(form, fields)) return;
-    if (!isOldEnough(form.elements.birth_date.value)) { const node = form.querySelector('[data-error="birth_date"]'); if (node) node.textContent = 'Homeostat доступен только пользователям старше 16 лет.'; return; }
+    if (!form.elements.birth_date.validity.valid || !isOldEnough(form.elements.birth_date.value)) { const node = form.querySelector('[data-error="birth_date"]'); if (node) node.textContent = 'Укажите корректную дату рождения. Homeostat доступен с 16 лет.'; return; }
+    if (form.elements.password.value.length < 8 || form.elements.password.value !== form.elements.password_confirmation.value) { applyErrors(form, new ApiError('Пароли должны совпадать и содержать минимум 8 символов.', 422, {password_confirmation:['Проверьте повтор пароля.']})); return; }
+    const button = event.currentTarget; button.disabled = true;
     try {
         await api('/auth/email/request-code', {
             method: 'POST', auth: false,
             body: Object.fromEntries(new FormData(form).entries()),
         });
         form.dataset.codeRequested = 'true';
+        form.dataset.codeEmail = form.elements.email.value.trim();
+        form.querySelectorAll('[name=name], [name=email], [name=birth_date], [name=password], [name=password_confirmation]').forEach(input => input.readOnly = true);
+        button.textContent = 'Код отправлен · отправить повторно';
         form.querySelector('[data-email-code-field]')?.classList.remove('is-hidden');
+        form.querySelector('[data-edit-registration]')?.classList.remove('is-hidden');
+        form.elements.code.focus();
+        try { await refreshCaptchaInForm(form); } catch { /* The received email code is still usable. */ }
         const status = form.querySelector('[data-email-code-status]');
         if (status) status.textContent = 'Код отправлен. Он действует 10 минут.';
         notify('Если адрес допустим, письмо с кодом отправлено', 'success');
     } catch (error) {
         applyErrors(form, error);
-        if (error.status === 422) { try { await loadCaptcha(); render(); } catch {} }
-    }
+        if (error.status === 422) { try { await refreshCaptchaInForm(form); } catch {} }
+    } finally { button.disabled = false; }
+}
+
+async function refreshCaptchaInForm(form) {
+    await loadCaptcha();
+    const box = form.querySelector('.captcha-box');
+    if (box) box.outerHTML = captchaMarkup();
+    form.querySelector('[data-action="refresh-captcha"]')?.addEventListener('click', () => refreshCaptchaInForm(form).catch(error => applyErrors(form, error)));
+    mountTurnstile();
 }
 
 async function submitEmailRegistration(event) {
@@ -329,10 +341,11 @@ async function submitEmailRegistration(event) {
         return;
     }
     if (!validate(form, ['name', 'email', 'code'])) return;
+    if (!/^\d{6}$/.test(form.elements.code.value)) { applyErrors(form, new ApiError('Введите код из шести цифр.', 422, {code:['Введите 6 цифр из письма.']})); return; }
     try {
         const result = await api('/auth/email/verify-code', {
             method: 'POST', auth: false,
-            body: Object.fromEntries(new FormData(form).entries()),
+            body: {email: form.dataset.codeEmail, code: form.elements.code.value},
         });
         setAuth(result); notify('Вход выполнен', 'success'); go(result.new_account ? 'welcome' : 'tracks');
     } catch (error) { applyErrors(form, error); }
@@ -416,23 +429,28 @@ async function deleteGenre(id) { if (!window.confirm('Удалить жанр? �
 async function blockUser(block) { const form = document.querySelector('#block-form'); const id = form?.elements.user_id?.value; if (!id) return; try { await api(`/admin/users/${id}/block`, { method: block ? 'PUT' : 'DELETE' }); notify(block ? 'Пользователь заблокирован' : 'Пользователь разблокирован', 'success'); } catch (error) { notify(readError(error), 'error'); } }
 async function deleteTrack(id) { if (!window.confirm('Удалить этот трек и связанные записи?')) return; try { await api(`/tracks/${id}`, { method: 'DELETE' }); notify('Трек удалён', 'success'); go('tracks'); } catch (error) { notify(readError(error), 'error'); } }
 const moderationPreviewUrls = new Map();
+const previewRequests = new Set();
 async function previewModerationTrack(btn) {
     const id = btn.dataset.id; const audio = document.querySelector(`[data-preview-audio="${id}"]`); if (!audio) return;
     document.querySelectorAll('[data-preview-audio]').forEach(other => { if (other !== audio) other.pause(); });
     try { player.pause?.(); } catch {}
     if (audio.src && !audio.paused) { audio.pause(); btn.textContent = '▶ Прослушать'; return; }
     if (!audio.src) {
+        const controller = new AbortController(); previewRequests.add(controller);
         btn.disabled = true; btn.textContent = 'Загрузка…';
         try {
-            const response = await fetch(apiUrl(`/tracks/${id}/stream`), { headers: { Authorization: `Bearer ${state.token}`, Accept: 'audio/*' } });
+            const response = await fetch(apiUrl(`/tracks/${id}/stream`), { signal:controller.signal, headers: { Authorization: `Bearer ${state.token}`, Accept: 'audio/*' } });
             if (!response.ok) throw new ApiError(response.status === 404 ? 'Аудиофайл трека не найден.' : `Ошибка сервера (${response.status}).`, response.status);
-            const url = URL.createObjectURL(await response.blob()); moderationPreviewUrls.set(id, url); audio.src = url;
+            const blob = await response.blob();
+            if (controller.signal.aborted || !audio.isConnected) return;
+            const url = URL.createObjectURL(blob); moderationPreviewUrls.set(id, url); audio.src = url;
             audio.onended = () => { btn.textContent = '▶ Прослушать'; };
             audio.onpause = () => { btn.textContent = '▶ Прослушать'; };
             audio.onplay = () => { btn.textContent = '❚❚ Пауза'; };
-        } catch (error) { notify(readError(error), 'error'); btn.textContent = '▶ Прослушать'; return; }
-        finally { btn.disabled = false; }
+        } catch (error) { if (error.name !== 'AbortError') notify(readError(error), 'error'); btn.textContent = '▶ Прослушать'; return; }
+        finally { previewRequests.delete(controller); btn.disabled = false; }
     }
+    if (!audio.isConnected) return;
     audio.classList.remove('is-hidden');
     try { await audio.play(); } catch { notify('Браузер не смог воспроизвести этот файл.', 'error'); }
 }
@@ -440,4 +458,29 @@ async function previewModerationTrack(btn) {
 async function moderateTrack(id, status) { const reason = status === 'rejected' ? window.prompt('Укажите причину отклонения:') : null; if (status === 'rejected' && !reason) return; try { await api(`/admin/tracks/${id}/status`, { method: 'PATCH', body: { status, ...(reason ? { reason } : {}) } }); notify(status === 'published' ? 'Трек опубликован' : 'Трек отклонён', 'success'); render(); } catch (error) { notify(readError(error), 'error'); } }
 
 window.addEventListener('hashchange', render);
-(async function boot() { if (await completeOAuth()) return; await handleBillingQuery(); render(); })();
+(async function boot() { await handleBillingQuery(); render(); })();
+
+async function mountModerationCovers(version) {
+    await Promise.all([...document.querySelectorAll('[data-moderation-cover]')].map(async img => {
+        try {
+            const response = await fetch(apiUrl(`/tracks/${img.dataset.moderationCover}/cover`), {headers: {Authorization: `Bearer ${state.token}`}});
+            if (!response.ok) throw new Error('cover');
+            const blob = await response.blob();
+            if (version !== renderVersion || !img.isConnected) return;
+            const url = URL.createObjectURL(blob); moderationPreviewUrls.set(`cover-${img.dataset.moderationCover}`, url); img.src = url;
+        } catch { if (img.isConnected) { const label = document.createElement('span'); label.textContent = 'Обложка недоступна'; img.replaceWith(label); } }
+    }));
+}
+function bindAdminUsers() {
+    const filter = document.querySelector('#admin-users-filter');
+    filter?.addEventListener('submit', event => { event.preventDefault(); go(`admin?${new URLSearchParams(new FormData(filter))}`); });
+    document.querySelectorAll('[data-user-block]').forEach(btn => btn.addEventListener('click', async () => {
+        if (!confirm('Изменить блокировку пользователя #' + btn.dataset.id + '?')) return;
+        btn.disabled = true;
+        try { await api(`/admin/users/${btn.dataset.id}/block`, {method:btn.dataset.userBlock === 'true' ? 'PUT' : 'DELETE'}); await render(); } catch (e) { btn.disabled = false; notify(readError(e), 'error'); }
+    }));
+    document.querySelectorAll('[data-admin-user-form]').forEach(form => form.addEventListener('submit', async event => {
+        event.preventDefault(); const btn = form.querySelector('[type=submit]'); btn.disabled = true;
+        try { await api(`/admin/users/${form.dataset.adminUserForm}`, {method:'PATCH', body:Object.fromEntries(new FormData(form))}); notify('Пользователь обновлён', 'success'); await render(); } catch (e) { applyErrors(form,e); btn.disabled = false; }
+    }));
+}
