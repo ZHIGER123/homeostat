@@ -25,6 +25,7 @@ class User extends Authenticatable
     public function comments(): HasMany { return $this->hasMany(Comment::class); }
     public function likes(): HasMany { return $this->hasMany(Like::class); }
     public function likedTracks(): BelongsToMany { return $this->belongsToMany(Track::class, 'likes')->withTimestamps(); }
+    public function likedPlaylists(): BelongsToMany { return $this->belongsToMany(Playlist::class, 'playlist_likes')->withTimestamps(); }
     public function following(): BelongsToMany { return $this->belongsToMany(User::class, 'follows', 'follower_id', 'followed_id')->withTimestamps(); }
     public function followers(): BelongsToMany { return $this->belongsToMany(User::class, 'follows', 'followed_id', 'follower_id')->withTimestamps(); }
     public function isAdmin(): bool { return $this->role === UserRole::Admin; }

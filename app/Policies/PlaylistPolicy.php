@@ -9,16 +9,16 @@ class PlaylistPolicy
 {
     public function view(User $user, Playlist $playlist): bool
     {
-        return $user->isAdmin() || $playlist->user_id === $user->id;
+        return $user->isAdmin() || $playlist->user_id === $user->id || $playlist->is_public;
     }
 
     public function update(User $user, Playlist $playlist): bool
     {
-        return $this->view($user, $playlist);
+        return $user->isAdmin() || $playlist->user_id === $user->id;
     }
 
     public function delete(User $user, Playlist $playlist): bool
     {
-        return $this->view($user, $playlist);
+        return $user->isAdmin() || $playlist->user_id === $user->id;
     }
 }

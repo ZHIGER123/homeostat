@@ -28,6 +28,12 @@ class UserLikeController extends Controller
         return TrackResource::collection($this->likes->likedTracks($user));
     }
 
+    public function status(User $user, Track $track): JsonResponse
+    {
+        Gate::authorize('access', $user);
+        return response()->json(['liked' => $user->likedTracks()->whereKey($track->id)->exists()]);
+    }
+
     /** PUT /api/v1/users/{user}/likes/{track} — поставить лайк (201 — создан, 200 — уже был). */
     public function store(User $user, Track $track): JsonResponse
     {

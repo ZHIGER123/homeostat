@@ -18,6 +18,12 @@ class UserFollowController extends Controller
 {
     public function __construct(private readonly FollowService $follows) {}
 
+    public function status(User $user, User $artist): JsonResponse
+    {
+        Gate::authorize('access', $user);
+        return response()->json(['following' => $user->following()->whereKey($artist->id)->exists()]);
+    }
+
     /** PUT /api/v1/users/{user}/following/{artist} — подписаться (201 — создана, 200 — уже была). */
     public function store(User $user, User $artist): JsonResponse
     {

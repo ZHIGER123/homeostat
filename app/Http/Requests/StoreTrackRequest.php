@@ -8,7 +8,7 @@ class StoreTrackRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return $this->user() && ($this->user()->isArtist() || $this->user()->isAdmin());
     }
 
     /**
@@ -27,7 +27,7 @@ class StoreTrackRequest extends FormRequest
             'description' => ['nullable', 'string', 'max:5000'],
             'audio' => ['required', 'file', 'mimes:mp3,wav,ogg', 'max:51200'],
             'cover' => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
-            'duration' => ['required', 'integer', 'min:1', 'max:36000'],
+            'duration' => ['sometimes', 'integer', 'min:1', 'max:36000'],
         ];
     }
 

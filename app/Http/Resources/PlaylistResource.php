@@ -16,6 +16,7 @@ class PlaylistResource extends JsonResource
             'id' => $this->id,
             'title' => $this->title,
             'description' => $this->description,
+            'is_public' => $this->is_public,
             'created_at' => $this->created_at,
             'owner' => new UserResource($this->whenLoaded('owner')),
             'tracks' => TrackResource::collection($this->whenLoaded('tracks')),

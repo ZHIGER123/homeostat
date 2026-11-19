@@ -42,6 +42,10 @@ class PlaylistController extends Controller
     {
         Gate::authorize('view', $playlist);
 
+        if (! request()->user()->isAdmin() && $playlist->user_id !== request()->user()->id) {
+            $playlist->load(['owner', 'tracks' => fn ($q) => $q->published()->with(['artist', 'genre'])]);
+            return new PlaylistResource($playlist);
+        }
         return new PlaylistResource($this->playlists->details($playlist));
     }
 

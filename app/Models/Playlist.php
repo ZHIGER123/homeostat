@@ -17,7 +17,10 @@ class Playlist extends Model
         'user_id',
         'title',
         'description',
+        'is_public',
     ];
+
+    protected function casts(): array { return ['is_public' => 'boolean']; }
 
     /** Владелец плейлиста. */
     public function owner(): BelongsTo
