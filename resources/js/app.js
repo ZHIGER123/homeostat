@@ -39,7 +39,7 @@ function escapeHtml(value = '') { return String(value).replace(/[&<>'"]/g, (char
 function roleName(role) { return ({ admin: 'Администратор', artist: 'Исполнитель', listener: 'Слушатель' })[role] || role || 'Гость'; }
 function planName(plan) { return ({ free: 'Free', artist: 'Artist', artist_pro: 'Artist Pro' })[plan] || plan || 'Free'; }
 function money(cents) { return cents ? `€${(Number(cents) / 100).toFixed(2)}` : 'Бесплатно'; }
-function hours(seconds) { return seconds == null ? 'Без лимита' : `${(Number(seconds) / 3600).toFixed(seconds % 3600 ? 1 : 0)} ч/мес`; }
+function hours(seconds) { return seconds == null ? 'Без лимита' : `${(Number(seconds) / 3600).toFixed(seconds % 3600 ? 1 : 0)} ч всего`; }
 function statusLabel(status) { return ({ pending: 'На модерации', published: 'Опубликован', rejected: 'Отклонён' })[status] || status || '—'; }
 function formatDuration(seconds) { if (!seconds) return '—'; const min = Math.floor(seconds / 60); const sec = String(seconds % 60).padStart(2, '0'); return `${min}:${sec}`; }
 function readError(error) { return error?.message || 'Неизвестная ошибка.'; }
